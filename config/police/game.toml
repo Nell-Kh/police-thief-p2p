@@ -1,0 +1,35 @@
+# Private per-peer configuration - POLICE (cop) side.
+# This file never crosses the network and is not signed.
+# When config/game.json exists, its values OVERRIDE any parallel key here
+# (a private file can never weaken a signed shared condition).
+version = "1.00"
+
+[game]
+group_name = "TEAM-TBD"
+group_id = "team-tbd"
+sub_game_number = 1
+members = ["id-TBD"]
+repos = { cop = "https://github.com/TBD/police-agent", thief = "https://github.com/TBD/thief-agent" }
+
+[network]
+my_port = 8801                                 # MY MCP server port (police)
+opponent_url = "http://127.0.0.1:8802/mcp"     # the only thing I know about the opponent
+turn_timeout_seconds = 180
+
+[strategy]
+# Points at our enhanced heuristic brain (belief map + barrier-aware BFS pursuit).
+police_class = "police_thief.domain.brain:EnhancedPoliceBrain"
+
+[trash_talk]
+# How the banter/deception text is produced. The MOVE is always pure Python.
+# claude_api = small cloud model (Haiku); automatic fallback to zero-token template.
+provider = "claude_api"
+every_n_steps = 3
+
+[llm]
+model = "claude-haiku"
+step_deadline_seconds = 30        # hard cap on LLM thinking per step
+
+[email]
+recipient = "rmisegal+uoh26finalgame@gmail.com"
+mode = "draft"
