@@ -10,13 +10,13 @@ Owner: nell (solo for now; partner may join — tasks are re-assignable).
 ## Phase 0 — Documentation & skeleton (guidelines ch. 2 mandatory work process)
 | # | Task | Commits | Status |
 |---|---|---|---|
-| 0.1 | Repo skeleton: uv project, pyproject (ruff/coverage), .gitignore, .env-example | 1 | ◐ |
-| 0.2 | Config skeleton: game.json (Appendix ו values), per-peer TOMLs, rate_limits, setup, logging | 1 | ◐ |
-| 0.3 | docs/PRD.md | 1 | ◐ |
-| 0.4 | docs/PLAN.md (C4, ADRs, contracts) | 1 | ◐ |
-| 0.5 | docs/TODO.md (this file) | 1 | ◐ |
-| 0.6 | 7 mechanism PRDs (PRD_board_engine … PRD_reporting_gatekeeper) | 2 | ☐ |
-| 0.7 | README stub + docs/PROMPTS.md (prompts book, ongoing) | 1 | ☐ |
+| 0.1 | Repo skeleton: uv project, pyproject (ruff/coverage), .gitignore, .env-example | 1 | ✔ |
+| 0.2 | Config skeleton: game.json (Appendix ו values), per-peer TOMLs, rate_limits, setup, logging | 1 | ✔ |
+| 0.3 | docs/PRD.md | 1 | ✔ |
+| 0.4 | docs/PLAN.md (C4, ADRs, contracts) | 1 | ✔ |
+| 0.5 | docs/TODO.md (this file) | 1 | ✔ |
+| 0.6 | 7 mechanism PRDs (PRD_board_engine … PRD_reporting_gatekeeper) | 2 | ✔ |
+| 0.7 | README stub + docs/PROMPTS.md (prompts book, ongoing) | 1 | ✔ |
 | 0.8 | **GATE: user approves all documents before development starts** | — | ☐ |
 
 ## Phase 1 — Base logic (PRD_board_engine) → M1
