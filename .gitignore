@@ -24,6 +24,9 @@ htmlcov/
 logs/*.json
 results/*.tmp
 
+# Local sync scratch (git bundles used to mirror the dev environment)
+.sync/
+
 # OS / editor
 .DS_Store
 .idea/
