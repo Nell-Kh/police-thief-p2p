@@ -15,9 +15,11 @@ from __future__ import annotations
 import argparse
 import sys
 
-from .constants import ROLE_POLICE, ROLE_THIEF
+from .constants import ROLE_POLICE
 from .domain.state import GameState
 from .sdk import SimulationSdk
+from .services.runtime import runner_from_config
+from .shared.config import ConfigManager
 
 _CELL_EMPTY = "."
 _CELL_BARRIER = "#"
@@ -54,44 +56,19 @@ def _glyph(state: GameState, cell: tuple[int, int]) -> str:
     return _CELL_EMPTY
 
 
-def _chase_move(sdk: SimulationSdk, state: GameState) -> str:
-    """A placeholder cop policy: close the gap on one axis at a time.
-
-    The real decision logic lives in the strategy module (phase 3); this exists
-    only so the demo produces a complete game.
-    """
-    cop_row, cop_col = state.cop
-    thief_row, thief_col = state.thief
-    legal = sdk.legal_moves(state, ROLE_POLICE)
-    if cop_row != thief_row:
-        wanted = "S" if thief_row > cop_row else "N"
-        if wanted in legal:
-            return wanted
-    if cop_col != thief_col:
-        wanted = "E" if thief_col > cop_col else "W"
-        if wanted in legal:
-            return wanted
-    return "STAY"
-
-
 def run_demo(quiet: bool = False) -> int:
-    """Play one scripted mini-game locally and report the result."""
-    sdk = SimulationSdk.load(ROLE_POLICE)
-    state = sdk.new_game()
+    """Play one mini-game between the configured brains and report the result."""
+    config = ConfigManager.load(ROLE_POLICE)
+    sdk = SimulationSdk(config)
+    runner = runner_from_config(config)
     if not quiet:
         print(f"board {sdk.contract.board.grid_size}x{sdk.contract.board.grid_size}, "
               f"contract {sdk.config_sha256[:12]}")
-        print(render(state), end="\n\n")
-    while not state.finished:
-        sdk.play_cop(state, _chase_move(sdk, state))
-        if not state.finished:
-            thief_moves = sdk.legal_moves(state, ROLE_THIEF)
-            sdk.play_thief(state, thief_moves[0] if thief_moves else "STAY")
-        sdk.end_turn(state)
+    state = runner.play()
     if not quiet:
         print(render(state), end="\n\n")
-    outcome = sdk.outcome(state)
-    if outcome is None:  # pragma: no cover - the loop only exits when finished
+    outcome = state.outcome
+    if outcome is None:  # pragma: no cover - play() only returns when finished
         return 1
     print(f"{outcome.event}: {outcome.reason}")
     print(f"steps {state.step} | cop {outcome.cop_points} | thief {outcome.thief_points}")

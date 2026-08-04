@@ -62,4 +62,18 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   prompt carried: splitting `wiring.py` and `recovery.py` out of the orchestrator to hold the
   150-line limit turned out to sharpen the responsibilities as well.
 
+## Entry 5 — Blind strategy
+- **Context:** stage 3 — a first decision core in a fully observable world, isolating the
+  geometry from the uncertainty that arrives with scent and hints.
+- **Prompt (essence):** "Implement BrainBase with the mandated `_pick_move`/`_decide_move`
+  plug points and a `package.module:Class` loader driven by the TOML `[strategy]` section.
+  Pursuit and evasion must use true BFS distances over the actual barriers, never raw
+  Manhattan. Both brains deterministic; tie-breaks in the fixed move order."
+- **Output:** `brain/base.py`, `pathfind.py`, `blind.py`, `services/runtime.py`; the CLI demo
+  now runs the configured brains end to end. 328 tests, 99% coverage.
+- **Lesson:** a test exposed that my first dead-end-avoidance rule could never fire (the veto
+  condition was unsatisfiable on real geometry). Rewriting the rule as a bounded penalty inside
+  one scoring function made it both simpler and testable — when a behavior is hard to write a
+  test for, the behavior itself is usually mis-designed.
+
 *(Entries continue as development proceeds.)*

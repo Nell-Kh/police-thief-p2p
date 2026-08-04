@@ -55,9 +55,9 @@ correctly at the thief peer.
 ## Phase 3 — Blind strategy (PRD_strategy) → M3
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 3.1 | domain/brain/base.py (BrainBase + class loader) + pathfind.py (barrier-aware BFS) | P0 | nell | ☐ |
-| 3.2 | Blind police brain (pursue) + blind thief brain (evade) | P0 | nell | ☐ |
-| 3.3 | Wire brains into PeerRuntime → **M3 observed** | P0 | nell | ☐ |
+| 3.1 | domain/brain/base.py (BrainBase + class loader) + pathfind.py (barrier-aware BFS) | P0 | nell | ✔ |
+| 3.2 | Blind police brain (pursue) + blind thief brain (evade) | P0 | nell | ✔ |
+| 3.3 | Wire brains into PeerRuntime → **M3 observed** | P0 | nell | ✔ |
 
 **M3:** given a known target location, the agent computes and executes the shortest path with
 no manual intervention.
