@@ -43,11 +43,11 @@ coordinate overlap triggers capture.
 ## Phase 2 — FastMCP infrastructure (PRD_p2p_mcp) → M2
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 2.1 | services/phase_machine.py — legal-transition table | P0 | nell | ☐ |
-| 2.2 | services/deadline.py + watchdog.py | P0 | nell | ☐ |
-| 2.3 | infra/mcp_server.py — exposed tools | P0 | nell | ☐ |
-| 2.4 | infra/mcp_client.py — deadline-wrapped calls, retries | P0 | nell | ☐ |
-| 2.5 | services/orchestrator.py + runtime, two processes → **M2 observed** | P0 | nell | ☐ |
+| 2.1 | services/phase_machine.py — legal-transition table | P0 | nell | ✔ |
+| 2.2 | services/deadline.py + watchdog.py | P0 | nell | ✔ |
+| 2.3 | infra/mcp_server.py — exposed tools | P0 | nell | ✔ |
+| 2.4 | infra/mcp_client.py — deadline-wrapped calls, retries | P0 | nell | ✔ |
+| 2.5 | services/orchestrator.py + runtime, two processes → **M2 observed** | P0 | nell | ✔ |
 
 **M2:** a geometric message leaving the police peer over localhost is received and decoded
 correctly at the thief peer.

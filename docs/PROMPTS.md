@@ -45,4 +45,21 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   helped too — because the move set is a fixed mapping, a diagonal move cannot be constructed at
   all rather than being validated away later.
 
+## Entry 4 — The peer-to-peer layer
+- **Context:** stage 2 of the development order — separate the two agents into independent
+  processes and prove the pipe works before loading it with crypto or strategy.
+- **Prompt (essence):** "Build the FastMCP peer layer from PRD_p2p_mcp: the tools a peer
+  exposes, the client that calls them, the turn state machine with its exact transition table,
+  the deadline tracker and the watchdog, and an Orchestrator that is the single gateway to all
+  of them. Inject every clock and every transport so no test sleeps or touches the network."
+- **Output:** `services/phase_machine.py`, `deadline.py`, `watchdog.py`, `inbound.py`,
+  `orchestrator.py`, `wiring.py`, `recovery.py`; `infra/transport.py`, `mcp_client.py`,
+  `mcp_server.py`; `domain/messages.py`. 289 tests, 99% coverage.
+- **Lesson:** asking for *injected* clocks and transports up front was the highest-leverage
+  instruction in the whole phase. It made every reliability path — retry, backoff, expired
+  deadline, frozen loop — a fast deterministic test instead of something only observable
+  against a real, misbehaving opponent. Two follow-up refactors also came out of a rule the
+  prompt carried: splitting `wiring.py` and `recovery.py` out of the orchestrator to hold the
+  150-line limit turned out to sharpen the responsibilities as well.
+
 *(Entries continue as development proceeds.)*

@@ -49,3 +49,39 @@ def config_copy(tmp_path: Path) -> Path:
     destination = tmp_path / "config"
     shutil.copytree(CONFIG_DIR, destination)
     return destination
+
+
+class FakeClock:
+    """A hand-cranked monotonic clock, so timing tests never sleep."""
+
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        """Move the clock forward."""
+        self.now += seconds
+
+
+@pytest.fixture
+def fake_clock() -> FakeClock:
+    """A monotonic clock the test drives by hand."""
+    return FakeClock()
+
+
+@pytest.fixture
+def network_config(config_dir: Path):
+    """The contract's network timings."""
+    from police_thief.shared.config import ConfigManager
+
+    return ConfigManager.load("police", config_dir).contract.network
+
+
+@pytest.fixture
+def rate_limits(config_dir: Path):
+    """The contract's gatekeeper limits."""
+    from police_thief.shared.config import ConfigManager
+
+    return ConfigManager.load("police", config_dir).contract.rate_limiter
