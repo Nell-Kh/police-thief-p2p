@@ -6,8 +6,9 @@ domain layer.
 
 Usage::
 
-    uv run python -m police_thief demo               # local mini-game
-    uv run python -m police_thief peer --role police  # serve + reach the opponent
+    uv run python -m police_thief demo                # local mini-game
+    uv run python -m police_thief peer --role police   # serve + reach the opponent
+    uv run python -m police_thief replay --log <file>  # verified match replay
 """
 
 from __future__ import annotations
@@ -97,11 +98,18 @@ def main(argv: list[str] | None = None) -> int:
     peer.add_argument("--role", required=True, choices=["police", "thief"])
     peer.add_argument("--peer-id", default="team-dev")
     peer.add_argument("--games-played", type=int, default=0)
+    replay = sub.add_parser("replay", help="open the verified replay viewer")
+    replay.add_argument("--log", required=True, help="path of a saved log_<id>_gNN.json")
     args = parser.parse_args(argv)
     if args.command == "demo":
         return run_demo(quiet=args.quiet)
     if args.command == "peer":
         return run_peer(args.role, args.peer_id, args.games_played)
+    if args.command == "replay":  # pragma: no cover - requires a display
+        from .gui.replay import ReplayWindow
+
+        ReplayWindow(args.log).run()
+        return 0
     return 1  # pragma: no cover - argparse rejects unknown commands
 
 
