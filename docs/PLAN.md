@@ -133,6 +133,22 @@ Police                                Thief
   replay controls; GUI excluded from coverage per guidelines' omit list, logic kept in domain.
 - **ADR-6 Canonical-JSON commit payload.** Conceptual formula covers 4 fields; we seal the
   richer reference record (adds hint, step, role, sub_game) for interop and stronger binding.
+- **ADR-7 Hidden positions on the wire (contradiction resolved).** Ch. 5's step-3 "Reveal:
+  Move + Hint" seems to disclose moves in-game, which would gut the belief game and make the
+  capture-claim ritual pointless. The lecturer's reference implementation resolves it: the
+  per-turn message carries ONLY a commit hash, the natural-language hint, the sender's scent
+  grid (numeric tau map), and optional public events (barrier declaration, capture claim +
+  truthful response). Moves, positions and nonces are disclosed exclusively at the end-of-game
+  audit, sealed inside the commits. We adopt the same wire discipline; our phase-6 protocol
+  layer will replace the in-game move-reveal with the sealed-record flow, and the turn token
+  travels with the turn message (no application-level ack, matching the reference). Documented
+  per the front-matter contradiction rule.
+- **ADR-8 Belief model (edge over the reference).** Reference belief: uniform prior, motion
+  diffusion, multiply by (1 + trust * tau), normalize - and it never parses the hint text and
+  never uses negative evidence, although the thief's truthful "not caught" answer excludes a
+  cell. We implement the same core (compatible behaviour) plus: barrier-aware diffusion,
+  cell exclusion on failed capture claims, and hint fusion with a lie-detection trust model
+  (expected 0.81 fresh-trail yardstick). Those are our competitive additions.
 
 ## 6. Deployment
 

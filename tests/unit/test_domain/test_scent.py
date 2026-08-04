@@ -127,18 +127,12 @@ def test_the_lock_contains_formula_parameters_and_the_numeric_example(pheromones
     assert payload["numeric_example"]["after_one_decay_turn"] == pytest.approx(0.81)
 
 
-def test_the_lock_hash_is_stable_and_exchangeable(pheromones) -> None:
-    """Both teams must derive the identical 64-hex lock from the same model."""
-    first = lock_sha256(pheromones)
-    second = lock_sha256(pheromones)
-    assert first == second
-    assert len(first) == 64
-
-
-def test_any_model_deviation_changes_the_lock(pheromones) -> None:
-    """A different decay rate is a different game - the lock must expose it."""
+def test_the_lock_is_stable_and_exposes_any_deviation(pheromones) -> None:
+    """Same model -> same 64-hex lock; a different decay -> a different lock."""
     from police_thief.shared.schema import PheromoneConfig
 
+    assert lock_sha256(pheromones) == lock_sha256(pheromones)
+    assert len(lock_sha256(pheromones)) == 64
     altered = PheromoneConfig(
         center_intensity=pheromones.center_intensity,
         decay=0.20,
