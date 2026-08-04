@@ -38,10 +38,10 @@ class StandStill(BlindPoliceBrain):
 
 
 def test_the_configured_brains_load_from_the_toml(config_dir: Path) -> None:
-    """Each role's own TOML selects its enhanced competition brain."""
+    """Each role's own TOML selects its competition brain."""
     police = configured_brain(ConfigManager.load("police", config_dir), "police")
     thief = configured_brain(ConfigManager.load("thief", config_dir), "thief")
-    assert type(police).__name__ == "EnhancedPoliceBrain"
+    assert type(police).__name__ == "RegionPoliceBrain"
     assert type(thief).__name__ == "EnhancedThiefBrain"
 
 

@@ -107,6 +107,34 @@ def take_turn(
     )
 
 
+def concession_message(*, view: WorldView, book: Logbook) -> TurnMessage:
+    """The trapped thief's final message: the loss, sealed and announced.
+
+    A trapping barrier (or a matching capture claim) ends the game on the
+    thief's side of the wire - but the cop cannot see the thief's cell, so
+    without this message the winner would never learn it won. The concession
+    is sealed into the logbook like any turn, making a false concession (or a
+    denied one) auditable, and travels as a ``win_claim`` naming the police.
+    """
+    record = book.append(
+        {
+            "step": view.step,
+            "role": view.role,
+            "type": "concession",
+            "result": dict(view.result or {}),
+        }
+    )
+    view.note("conceding the mini-game to the police")
+    return TurnMessage(
+        step=view.step,
+        sender=view.role,
+        hint="",
+        smell_grid=encode_scent(view.my_scent.snapshot()),
+        commit=record["commit"],
+        win_claim={"type": "capture", "winner": "police"},
+    )
+
+
 def _answer_claim(view: WorldView) -> dict | None:
     """The thief's truthful answer to the cop's last capture claim."""
     if view.role != "thief" or view.pending_claim is None:

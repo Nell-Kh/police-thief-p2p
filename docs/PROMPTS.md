@@ -163,4 +163,26 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   exactly as ch. 9.3.1 warns: the gates are cumulative, and a test isolating one gate must
   deliberately open the others wide.
 
+## Entry 11 — The research notebook, the region cop, and the concession (phase 8, part 1)
+- **Context:** phase 8's parameter research, in a perfect-information harness (the cop is
+  handed the thief's true cell - the ceiling of what belief can deliver).
+- **Prompt (essence):** "Sweep the pinch cop's PINCH_RANGE × BARRIER_RESERVE over a grid of
+  start pairs; diagnose the result; design whatever the diagnosis demands; validate
+  exhaustively; add the ch. 11 token budget table; every figure must be the output of a real
+  executed run."
+- **Output:** `notebooks/analysis.ipynb` (regenerable via `scripts/build_notebook.py`),
+  `domain/brain/region.py` (the new competition cop, selected in the TOML), the concession
+  protocol (`turn_taking.concession_message`, receiver + runtime wiring), 511 tests, 97.8%
+  coverage.
+- **Lesson:** three, each earned the hard way. (1) The pinch cop's capture surface was flat
+  **0%** across its whole parameter grid - a structural failure (the parity dance: equal
+  speeds, orthogonal moves, a trap trigger that never fires on the diagonal), not a tuning
+  miss; no sweep would have saved it. (2) The cure inverted the objective - stop minimizing
+  distance to the thief, start minimizing the thief's *options* (its safe region, then its
+  exit count): 1900/1900 captures, mean 7.8 steps, ~2 barriers of 14. (3) The first networked
+  capture in the project's history immediately exposed a protocol hole nothing else could
+  have found: the trapped thief knew it lost, went silent, and the winner never learned it
+  won - fixed with a sealed, auditable concession message. A strategy improvement was also a
+  protocol test.
+
 *(Entries continue as development proceeds.)*

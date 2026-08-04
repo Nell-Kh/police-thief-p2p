@@ -21,7 +21,7 @@ from ..shared.sysinfo import hardware_spec
 from ..shared.version import __version__
 from .runtime import configured_brain
 from .turn_receiving import receive_turn
-from .turn_taking import take_turn
+from .turn_taking import concession_message, take_turn
 from .world_view import WorldView
 
 
@@ -44,6 +44,7 @@ class MatchRuntime:
             model=str(config.private_value("llm", "model", "")),
         )
         self.book = Logbook(game_id, sub_game, config.role)
+        self._conceded = False
         self.step0 = self.book.append(
             step0_record(
                 spec=hardware_spec(),
@@ -89,9 +90,24 @@ class MatchRuntime:
             self.view.result = {"type": "survival", "winner": "thief"}
         return message
 
-    def on_turn(self, message: TurnMessage) -> None:
-        """Fold an opponent's turn message into our world."""
+    def on_turn(self, message: TurnMessage) -> TurnMessage | None:
+        """Fold an opponent's turn message into our world.
+
+        Returns:
+            A final concession message when this turn just ended the game
+            against us (the thief walled in or claimed correctly) - the
+            caller must deliver it, or the winner never learns it won. None
+            in every other case.
+        """
         receive_turn(self.view, message, self.contract)
+        if (
+            self.view.role == "thief"
+            and not self._conceded
+            and (self.view.result or {}).get("winner") == "police"
+        ):
+            self._conceded = True
+            return concession_message(view=self.view, book=self.book)
+        return None
 
     def disclosure(self) -> dict[str, Any]:
         """The end-of-game audit payload: every payload and nonce, plus our claim."""

@@ -33,17 +33,24 @@ def peers(config_dir: Path) -> tuple[MatchRuntime, MatchRuntime]:
     return police, thief
 
 
+def deliver(receiver: MatchRuntime, sender: MatchRuntime, message) -> None:
+    """Hand a message over, and route back any immediate reply (a concession)."""
+    reply = receiver.on_turn(message)
+    if reply is not None:
+        sender.on_turn(reply)
+
+
 def play_out(police: MatchRuntime, thief: MatchRuntime) -> None:
     """Alternate turns - thief first - delivering each message to the other."""
     for _ in range(SAFETY_CAP):
         if thief.ended and police.ended:
             return
         if not thief.ended:
-            police.on_turn(thief.play_turn())
+            deliver(police, thief, thief.play_turn())
         if police.ended and thief.ended:
             return
         if not police.ended:
-            thief.on_turn(police.play_turn())
+            deliver(thief, police, police.play_turn())
     raise AssertionError("the match did not terminate inside the safety cap")
 
 

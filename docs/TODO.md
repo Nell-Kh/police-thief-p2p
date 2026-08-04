@@ -114,8 +114,10 @@ a recorded round with a valid verification stamp.
 ## Phase 8 — Research, compliance, submission → M8
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 8.1 | notebooks/analysis.ipynb — parameter research, sensitivity analysis, graphs | P1 | nell | ☐ |
-| 8.2 | Token cost analysis and budget table (guidelines ch. 11) | P2 | nell | ☐ |
+| 8.1 | notebooks/analysis.ipynb — parameter research, sensitivity analysis, graphs | P1 | nell | ✔ |
+| 8.1b | Region cop (brain/region.py) — research outcome promoted to competition brain | P1 | nell | ✔ |
+| 8.1c | Concession protocol — networked capture endings agree on both peers | P0 | nell | ✔ |
+| 8.2 | Token cost analysis and budget table (guidelines ch. 11) | P2 | nell | ✔ |
 | 8.3 | docs/COMPLIANCE.md — rules #1–#55 + guidelines checklist → module/test map | P1 | nell | ☐ |
 | 8.4 | README.md full academic report (Dec-POMDP, dilemmas, strategies, screenshots) | P0 | nell | ☐ |
 | 8.5 | Verification pass: ruff clean, coverage ≥85%, 150-line audit, checklist §11.5 | P0 | nell | ☐ |

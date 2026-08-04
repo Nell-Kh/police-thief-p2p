@@ -119,10 +119,12 @@ def test_both_enhanced_brains_are_deterministic(contract) -> None:
             assert brain.decide(view(contract, role=brain.role)) == first
 
 
-def test_the_configured_toml_now_selects_the_enhanced_brains(config_dir: Path) -> None:
+def test_the_configured_toml_selects_the_competition_brains(config_dir: Path) -> None:
+    """Police: the region cop (phase-8 research); thief: the enhanced evader."""
+    from police_thief.domain.brain.region import RegionPoliceBrain
     from police_thief.services.runtime import configured_brain
 
     police = configured_brain(ConfigManager.load("police", config_dir), "police")
     thief = configured_brain(ConfigManager.load("thief", config_dir), "thief")
-    assert isinstance(police, EnhancedPoliceBrain)
+    assert isinstance(police, RegionPoliceBrain)
     assert isinstance(thief, EnhancedThiefBrain)

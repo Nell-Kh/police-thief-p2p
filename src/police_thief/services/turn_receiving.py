@@ -70,11 +70,25 @@ def _apply_claim_response(view: WorldView, message: TurnMessage, contract: GameC
 
 
 def _apply_win_claim(view: WorldView, message: TurnMessage, contract: GameContract) -> None:
-    """A survival claim is accepted when the threshold has truly been reached."""
+    """A survival claim or a concession, each accepted only from the right side.
+
+    Survival must clear the signed threshold; a capture concession is only
+    meaningful coming from the thief - it is the losing side giving up a win
+    it could otherwise silently deny, so no further proof is demanded here
+    (the sealed logbook and the mutual audit carry the proof).
+    """
     if message.win_claim is None:
         return
-    if message.win_claim.get("type") == "survival":
+    if message.win_claim.get("type") == "survival" and message.sender == "thief":
         if message.step >= contract.movement.survival_threshold:
             view.result = {"type": "survival", "winner": "thief"}
         else:
             view.note("premature survival claim ignored")
+    elif (
+        message.win_claim.get("type") == "capture"
+        and message.sender == "thief"
+        and view.role == "police"
+        and view.result is None
+    ):
+        view.result = {"type": "capture", "winner": "police", "how": "conceded"}
+        view.note("the thief conceded the capture")
