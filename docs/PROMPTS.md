@@ -76,4 +76,22 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   one scoring function made it both simpler and testable — when a behavior is hard to write a
   test for, the behavior itself is usually mis-designed.
 
+## Entry 6 — Language, scent and the competition brains (phase 4 complete)
+- **Context:** stage 4 — the uncertainty layer, built after reading chapters 4-6 line by line
+  and after resolving the reveal-vs-hidden-position contradiction against the lecturer's
+  reference implementation (ADR-7).
+- **Prompt (essence):** "Implement the printed emission matrix digit for digit with the
+  pre-series SHA-256 lock; the reference-compatible belief update plus exclusion and a region
+  hook; the 0.81-yardstick lie detector with an EWMA trust coefficient; four hint providers
+  behind one interface with a token ledger, budget guard, step throttle and template fallback;
+  and enhanced brains - corridor-pinching cop with a barrier reserve, trap-aware thief."
+- **Output:** `domain/scent.py`, `belief.py`, `trust.py`, `brain/enhanced.py`,
+  `infra/llm/` (base, ledger, template, chain, claude_api, ollama, claude_cli); M4 integration
+  tests walking the full loop both truthfully and deceptively. 415 tests, 98% coverage.
+- **Lesson:** two edges came from *reading the opponent*: the reference never parses hint text
+  and discards negative capture-claim evidence — our trust layer and belief exclusion exploit
+  exactly those gaps. And composing the paid providers as
+  fallback(throttle(budget_guard(paid), template)) means the verbal layer can never cost a
+  game: every guarantee is a wrapper, each testable alone.
+
 *(Entries continue as development proceeds.)*

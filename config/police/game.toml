@@ -17,8 +17,8 @@ opponent_url = "http://127.0.0.1:8802/mcp"     # the only thing I know about the
 turn_timeout_seconds = 180
 
 [strategy]
-# The stage-3 blind pursuit brain; upgraded to the belief-driven brain in stage 4.
-police_class = "police_thief.domain.brain.blind:BlindPoliceBrain"
+# The belief-driven competition brain: BFS pursuit, trapping and corridor pinching.
+police_class = "police_thief.domain.brain.enhanced:EnhancedPoliceBrain"
 
 [trash_talk]
 # How the banter/deception text is produced. The MOVE is always pure Python.

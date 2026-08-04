@@ -37,11 +37,12 @@ class StandStill(BlindPoliceBrain):
         return stay()
 
 
-def test_the_configured_brains_load_from_the_toml(config: ConfigManager) -> None:
-    police = configured_brain(config, "police")
-    thief = configured_brain(config, "thief")
-    assert type(police).__name__ == "BlindPoliceBrain"
-    assert type(thief).__name__ == "BlindThiefBrain"
+def test_the_configured_brains_load_from_the_toml(config_dir: Path) -> None:
+    """Each role's own TOML selects its enhanced competition brain."""
+    police = configured_brain(ConfigManager.load("police", config_dir), "police")
+    thief = configured_brain(ConfigManager.load("thief", config_dir), "thief")
+    assert type(police).__name__ == "EnhancedPoliceBrain"
+    assert type(thief).__name__ == "EnhancedThiefBrain"
 
 
 def test_an_absent_strategy_section_falls_back_to_the_default(
@@ -59,7 +60,7 @@ def test_the_cop_executes_a_shortest_path_with_no_intervention(
     sdk = SimulationSdk(config)
     runner = LocalMatchRunner(
         sdk,
-        police_brain=configured_brain(config, "police"),
+        police_brain=BlindPoliceBrain("police", config.contract),
         thief_brain=StandStill("thief", config.contract),
     )
     state = sdk.new_game()

@@ -68,10 +68,10 @@ no manual intervention.
 | 4.1 | domain/scent.py — 5×5 emission matrix, decay, clamp | P0 | nell | ✔ |
 | 4.2 | domain/belief.py — Bayes update, barrier zeroing, normalization | P0 | nell | ✔ |
 | 4.3 | domain/trust.py — lie detection (expected vs measured scent) | P1 | nell | ✔ |
-| 4.4 | infra/llm/base.py + template.py (landmarks, 15-word cap) | P0 | nell | ☐ |
-| 4.5 | infra/llm/claude_api.py + ollama.py + claude_cli.py + fallback chain | P1 | nell | ☐ |
-| 4.6 | Enhanced brains: belief-driven pursuit, barrier planning, evasion | P1 | nell | ☐ |
-| 4.7 | Token metering ledger → **M4 observed** | P1 | nell | ☐ |
+| 4.4 | infra/llm/base.py + template.py (landmarks, 15-word cap) | P0 | nell | ✔ |
+| 4.5 | infra/llm/claude_api.py + ollama.py + claude_cli.py + fallback chain | P1 | nell | ✔ |
+| 4.6 | Enhanced brains: belief-driven pursuit, barrier planning, evasion | P1 | nell | ✔ |
+| 4.7 | Token metering ledger → **M4 observed** | P1 | nell | ✔ |
 
 **M4:** a free-language report is translated into inference; the scent map updates and decays
 every turn; the verbal layer produces a hint (truth or lie).

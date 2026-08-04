@@ -6,6 +6,7 @@ in the system decides a move, and the language model never does.
 
 from .base import BrainBase, BrainLoadError, BrainView, load_brain
 from .blind import BlindPoliceBrain, BlindThiefBrain
+from .enhanced import EnhancedPoliceBrain, EnhancedThiefBrain
 
 __all__ = [
     "BlindPoliceBrain",
@@ -13,5 +14,7 @@ __all__ = [
     "BrainBase",
     "BrainLoadError",
     "BrainView",
+    "EnhancedPoliceBrain",
+    "EnhancedThiefBrain",
     "load_brain",
 ]
