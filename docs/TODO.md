@@ -87,12 +87,12 @@ every turn; the verbal layer produces a hint (truth or lie).
 ## Phase 6 — Security & crypto (PRD_commit_reveal) → M6
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 6.1 | domain/crypto.py — canonical JSON, SHA-256 commit/verify, nonces | P0 | nell | ☐ |
-| 6.2 | domain/protocol.py — commit → ack → reveal → final-reveal flow | P0 | nell | ☐ |
-| 6.3 | domain/step0.py — hardware declaration, github_commit, token cap, signing | P0 | nell | ☐ |
-| 6.4 | domain/logbook.py — append-only match log, four lifecycle JSON files | P0 | nell | ☐ |
-| 6.5 | domain/audit.py — mutual end-of-game audit, forgery → technical loss | P0 | nell | ☐ |
-| 6.6 | domain/negotiation.py — config + scent-model lock, game-count declaration → **M6** | P0 | nell | ☐ |
+| 6.1 | domain/crypto.py — canonical JSON, SHA-256 commit/verify, nonces | P0 | nell | ✔ |
+| 6.2 | domain/protocol.py — commit → ack → reveal → final-reveal flow | P0 | nell | ✔ |
+| 6.3 | domain/step0.py — hardware declaration, github_commit, token cap, signing | P0 | nell | ✔ |
+| 6.4 | domain/logbook.py — append-only match log, four lifecycle JSON files | P0 | nell | ✔ |
+| 6.5 | domain/audit.py — mutual end-of-game audit, forgery → technical loss | P0 | nell | ✔ |
+| 6.6 | domain/negotiation.py — config + scent-model lock, game-count declaration → **M6** | P0 | nell | ✔ |
 
 **M6:** a move is committed then revealed with a valid nonce and verifies; Step-0 verifies
 hardware and the commit hash.
@@ -100,6 +100,7 @@ hardware and the commit hash.
 ## Phase 7 — Reporting & visualization shell → M7
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
+| 7.0 | Networked turn loop on the ADR-7 wire (negotiate/receive_turn/submit_audit tools) | P0 | nell | ☐ |
 | 7.1 | shared/bucket.py (token bucket) + gatekeeper.py (quota, DOS detector, FIFO queue) | P0 | nell | ☐ |
 | 7.2 | infra/email/oauth.py (send-only scope) + sender.py (draft/send) | P0 | nell | ☐ |
 | 7.3 | infra/email/reports.py — JSON attachment, result file assembly | P0 | nell | ☐ |

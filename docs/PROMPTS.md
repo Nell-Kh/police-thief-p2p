@@ -107,4 +107,21 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
 - **Lesson:** because reliability was built into the client layer in phase 2, phase 5 needed no
   new failure handling at all — the tunnel is configuration, not code.
 
+## Entry 8 — The cryptographic core (phase 6)
+- **Context:** stage 6 — commit-reveal, sealed records, the mutual audit. Chapter 5 read line
+  by line first; seal format matched to the league's de-facto reference implementation.
+- **Prompt (essence):** "Seal sha256(canonical_json(payload) + '|' + nonce) with secrets-grade
+  nonces; build the Step-0 record with the mandatory github_commit and the hardware spec; the
+  per-turn sealed record with position/move/intent that never cross the wire; the turn message
+  that REFUSES cleartext position fields; an append-only logbook saving log_<game_id>_gNN.json;
+  terms negotiation locking contract digest + scent model + game-count declaration; and a
+  TWO-layer audit - hashes, then trajectory physics."
+- **Output:** `domain/crypto.py`, `sealing.py`, `turnmsg.py`, `logbook.py`, `audit.py`,
+  `negotiation.py`, `shared/sysinfo.py`. 479 tests, 97.6% coverage.
+- **Lesson:** the audit's physics layer is the phase's best idea and it came from auditing the
+  *reference*: its audit checks hashes only, so a hash-consistent teleport passes. Ours fails
+  it - the test seals a (2,3)->(6,6) "east" step with perfect hashes and the verdict is
+  TAMPERED. Verifying what the adversary's verifier misses is worth points in a league where
+  every opponent forked the same reference.
+
 *(Entries continue as development proceeds.)*
