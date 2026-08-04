@@ -79,8 +79,8 @@ every turn; the verbal layer produces a hint (truth or lie).
 ## Phase 5 — Cloud & tunneling → M5
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 5.1 | Public-URL support, tunnel docs, reconnect policy, timeout → TECHNICAL_LOSS | P0 | nell | ☐ |
-| 5.2 | Remote round over a public tunnel → **M5 observed** | P0 | nell | ☐ |
+| 5.1 | Public-URL support, tunnel docs, reconnect policy, timeout → TECHNICAL_LOSS | P0 | nell | ✔ |
+| 5.2 | Remote round over a public tunnel → **M5 observed** | P0 | nell | ✔ |
 
 **M5:** an agent on a remote machine connects via the tunnel and plays a full round.
 

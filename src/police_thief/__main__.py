@@ -6,8 +6,8 @@ domain layer.
 
 Usage::
 
-    uv run python -m police_thief demo          # scripted local mini-game
-    uv run python -m police_thief demo --quiet  # result only
+    uv run python -m police_thief demo               # local mini-game
+    uv run python -m police_thief peer --role police  # serve + reach the opponent
 """
 
 from __future__ import annotations
@@ -75,15 +75,33 @@ def run_demo(quiet: bool = False) -> int:
     return 0
 
 
+def run_peer(role: str, peer_id: str, games_played: int) -> int:
+    """Boot one peer process and probe connectivity to its opponent."""
+    from .services.peer_boot import check_connectivity
+
+    report = check_connectivity(ConfigManager.load(role), peer_id, games_played)
+    status = "OK" if report.handshake_ok else "FAILED"
+    print(f"[{report.role}] serving on port {report.my_port}")
+    print(f"[{report.role}] opponent at {report.opponent_url}")
+    print(f"[{report.role}] handshake {status}: {report.detail}")
+    return 0 if report.handshake_ok else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments and dispatch to a sub-command."""
     parser = argparse.ArgumentParser(prog="police_thief", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     demo = sub.add_parser("demo", help="play a scripted local mini-game")
     demo.add_argument("--quiet", action="store_true", help="print only the result")
+    peer = sub.add_parser("peer", help="boot a peer process and reach the opponent")
+    peer.add_argument("--role", required=True, choices=["police", "thief"])
+    peer.add_argument("--peer-id", default="team-dev")
+    peer.add_argument("--games-played", type=int, default=0)
     args = parser.parse_args(argv)
     if args.command == "demo":
         return run_demo(quiet=args.quiet)
+    if args.command == "peer":
+        return run_peer(args.role, args.peer_id, args.games_played)
     return 1  # pragma: no cover - argparse rejects unknown commands
 
 

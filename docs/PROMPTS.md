@@ -94,4 +94,17 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   fallback(throttle(budget_guard(paid), template)) means the verbal layer can never cost a
   game: every guarantee is a wrapper, each testable alone.
 
+## Entry 7 — Cloud and tunneling (phase 5)
+- **Context:** stage 5 — from localhost to public addresses. The transport abstraction built in
+  phase 2 pays off: a tunnel URL and a localhost port are the same code path.
+- **Prompt (essence):** "Add the real MCP-over-HTTP transport behind the existing Transport
+  protocol, a `peer` subcommand that boots one process per role (serve + handshake), tunnel
+  documentation, and prove both directions live: a real two-process handshake over HTTP, and a
+  dead opponent producing a clean technical loss instead of a hang."
+- **Output:** `infra/http_transport.py`, `services/peer_boot.py`, the `peer` CLI subcommand,
+  `docs/TUNNELING.md`. Observed live in two processes: handshake OK over HTTP; with the
+  opponent down, three retries + backoff and a declared technical loss in 11 seconds.
+- **Lesson:** because reliability was built into the client layer in phase 2, phase 5 needed no
+  new failure handling at all — the tunnel is configuration, not code.
+
 *(Entries continue as development proceeds.)*
