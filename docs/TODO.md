@@ -101,12 +101,12 @@ hardware and the commit hash.
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
 | 7.0 | Networked turn loop on the ADR-7 wire (negotiate/receive_turn/submit_audit tools) | P0 | nell | ✔ |
-| 7.1 | shared/bucket.py (token bucket) + gatekeeper.py (quota, DOS detector, FIFO queue) | P0 | nell | ☐ |
-| 7.2 | infra/email/oauth.py (send-only scope) + sender.py (draft/send) | P0 | nell | ☐ |
-| 7.3 | infra/email/reports.py — JSON attachment, result file assembly | P0 | nell | ☐ |
+| 7.1 | shared/bucket.py (token bucket) + gatekeeper.py (quota, DOS detector, FIFO queue) | P0 | nell | ✔ |
+| 7.2 | infra/email/oauth.py (send-only scope) + sender.py (draft/send) | P0 | nell | ✔ |
+| 7.3 | infra/email/reports.py — JSON attachment, result file assembly | P0 | nell | ✔ |
 | 7.4 | gui/live.py + heatmap.py + banner.py — local truth only | P0 | nell | ✔ |
 | 7.5 | gui/replay.py — step forward/back, per-step verification, Verified OK / TAMPERED | P0 | nell | ✔ |
-| 7.6 | End-to-end shell run → **M7 observed** | P0 | nell | ☐ |
+| 7.6 | End-to-end shell run (scripts/m7_report_demo.py) → **M7 observed** | P0 | nell | ✔ |
 
 **M7:** a game summary is sent via Gmail; the GUI shows the live state; the Replay App replays
 a recorded round with a valid verification stamp.

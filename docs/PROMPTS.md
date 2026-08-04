@@ -140,4 +140,27 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   research notebook's tuning target is now obvious: proactive area-denial barriers, not
   reactive pinches.
 
+## Entry 10 — Gatekeeper, Gmail OAuth and the lifecycle reports (phase 7, part 2)
+- **Context:** rulebook ch. 9.3 + Appendix A, re-read line-by-line first. The iron rules
+  extracted before coding: `gmail.send` scope ONLY; both secret files git-ignored; the report
+  is a machine-readable JSON *attachment* (plaintext = rejected = points lost); HTTP 429 means
+  back off, never blind-retry; each side mails its own report; four lifecycle files share one
+  `game_uid`.
+- **Prompt (essence):** "Build the token bucket with the book's verbatim update rule
+  `tokens <- min(C, tokens + r*dt)`, the three-gate Gatekeeper (daily quota, bucket, DOS
+  detector that LOCKS the pipe - sacrifice a report to save the account) with a FIFO overflow
+  queue and a monitoring log; the Appendix-A OAuth flow with lazy Google imports so tests never
+  touch the network; a sender with draft/send modes that turns 429 into the Gatekeeper's queue;
+  and builders for declaration/config/result lifecycle files in canonical JSON, with the result
+  totals recomputed from the per-mini-game rows so summary and detail can never disagree."
+- **Output:** `shared/bucket.py`, `shared/gatekeeper.py`, `infra/email/{oauth,sender,reports}.py`,
+  `scripts/m7_report_demo.py`. 495 tests, 98.0% coverage. **M7 observed**: a full mini-game →
+  three lifecycle files on disk → the result report through all three gates → Gmail (stub here;
+  a real Draft once `credentials.json` exists per Appendix A).
+- **Lesson:** injecting the clock into both the bucket and the Gatekeeper made every rate/DOS
+  test deterministic and instant - the first Gatekeeper test failed honestly (a 60-send burst
+  tripped the DOS gate before the bucket could be observed), which is the pattern working
+  exactly as ch. 9.3.1 warns: the gates are cumulative, and a test isolating one gate must
+  deliberately open the others wide.
+
 *(Entries continue as development proceeds.)*

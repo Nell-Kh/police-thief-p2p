@@ -1,0 +1,128 @@
+"""Tests for the sender - MIME anatomy, both modes, 429 back-off, the gates."""
+
+from __future__ import annotations
+
+import base64
+import email
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from police_thief.infra.email.sender import (
+    MODE_SEND,
+    GmailSender,
+    RateLimitedError,
+    build_report_email,
+)
+from police_thief.shared.gatekeeper import Gatekeeper
+
+
+class FakeGmail:
+    """A Gmail service double recording drafts and sends."""
+
+    def __init__(self, error: Exception | None = None) -> None:
+        self.drafts_created: list[dict] = []
+        self.messages_sent: list[dict] = []
+        self._error = error
+
+    def users(self) -> FakeGmail:
+        return self
+
+    def drafts(self) -> SimpleNamespace:
+        # ``userId`` mirrors the real Gmail API keyword, hence the noqa.
+        create = lambda userId, body: self._request(self.drafts_created, body)  # noqa: N803, E731
+        return SimpleNamespace(create=create)
+
+    def messages(self) -> SimpleNamespace:
+        send = lambda userId, body: self._request(self.messages_sent, body)  # noqa: N803, E731
+        return SimpleNamespace(send=send)
+
+    def _request(self, bucket: list[dict], body: dict) -> SimpleNamespace:
+        def execute() -> dict:
+            if self._error is not None:
+                raise self._error
+            bucket.append(body)
+            return {"id": "msg-1"}
+
+        return SimpleNamespace(execute=execute)
+
+
+def test_the_report_is_a_machine_readable_json_attachment() -> None:
+    payload = {"game_id": "G1", "totals": {"police": 20, "thief": 5}}
+    message = build_report_email("prof@example.com", "Result", "attached", "result_G1.json", payload)
+    parsed = email.message_from_bytes(base64.urlsafe_b64decode(message["raw"]))
+    assert parsed["to"] == "prof@example.com"
+    parts = list(parsed.walk())
+    attachment = next(p for p in parts if p.get_filename() == "result_G1.json")
+    body = json.loads(attachment.get_payload(decode=True))
+    assert body == payload  # not plaintext - ch. 9.3.3 iron rule
+
+
+def test_draft_mode_parks_the_message_in_drafts() -> None:
+    service = FakeGmail()
+    sender = GmailSender(service, "prof@example.com", mode="draft")
+    assert sender.send_report("s", "b", "r.json", {"x": 1}) == "sent"
+    assert len(service.drafts_created) == 1
+    assert service.messages_sent == []
+
+
+def test_send_mode_really_sends() -> None:
+    service = FakeGmail()
+    sender = GmailSender(service, "prof@example.com", mode=MODE_SEND)
+    sender.send_report("s", "b", "r.json", {"x": 1})
+    assert len(service.messages_sent) == 1
+    assert service.drafts_created == []
+
+
+def test_an_unknown_mode_is_rejected_at_construction() -> None:
+    with pytest.raises(ValueError, match="unknown email mode"):
+        GmailSender(FakeGmail(), "prof@example.com", mode="broadcast")
+
+
+def test_google_429_becomes_a_back_off_never_a_blind_retry() -> None:
+    quota_error = Exception("quota")
+    quota_error.resp = SimpleNamespace(status=429)
+    sender = GmailSender(FakeGmail(error=quota_error), "prof@example.com", mode=MODE_SEND)
+    with pytest.raises(RateLimitedError, match="429"):
+        sender.send_report("s", "b", "r.json", {})
+
+
+def test_other_api_errors_pass_through_unmasked() -> None:
+    boom = Exception("boom")
+    boom.resp = SimpleNamespace(status=500)
+    sender = GmailSender(FakeGmail(error=boom), "prof@example.com", mode=MODE_SEND)
+    with pytest.raises(Exception, match="boom"):
+        sender.send_report("s", "b", "r.json", {})
+
+
+def test_configured_sender_reads_everything_from_config(tmp_path) -> None:
+    from police_thief.infra.email.sender import configured_sender
+
+    limits = tmp_path / "rate_limits.json"
+    limits.write_text(
+        json.dumps({"rate_limits": {"services": {"gmail": {
+            "requests_per_minute": 30, "daily_quota": 100, "queue_depth": 10}}}}),
+        encoding="utf-8",
+    )
+    manager = SimpleNamespace(
+        private=lambda section: {"recipient": "prof@example.com", "mode": "draft"}
+    )
+    sender = configured_sender(manager, FakeGmail(), rate_limits_path=str(limits))
+    assert sender.recipient == "prof@example.com"
+    assert sender.mode == "draft"
+    assert sender.send_report("s", "b", "r.json", {}) == "sent"  # gates wired in
+
+
+def test_every_send_passes_the_gatekeeper() -> None:
+    clock = lambda: 0.0  # noqa: E731 - a frozen clock is clearest inline
+    keeper = Gatekeeper(
+        requests_per_minute=60, daily_quota=1, queue_depth=2,
+        dos_max_per_window=10, dos_window_sec=1.0, clock=clock,
+    )
+    service = FakeGmail()
+    sender = GmailSender(service, "prof@example.com", mode=MODE_SEND, gatekeeper=keeper)
+    assert sender.send_report("s", "b", "r.json", {"n": 1}) == "sent"
+    assert sender.send_report("s", "b", "r.json", {"n": 2}) == "queued"
+    assert len(service.messages_sent) == 1  # the quota gate held the second
+    assert keeper.log[0]["label"] == "r.json"
