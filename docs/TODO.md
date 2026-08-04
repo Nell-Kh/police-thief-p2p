@@ -32,10 +32,10 @@ message.
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
 | 1.1 | Config layer (config_io, schema, contract, ConfigManager) + constants + version | P0 | nell | ✔ |
-| 1.2 | domain/board.py — grid, occupancy, barriers, bounds | P0 | nell | ☐ |
-| 1.3 | domain/rules.py — move legality, no diagonals, barrier law, trap detection | P0 | nell | ☐ |
-| 1.4 | domain/scoring.py — all termination events and point allocation | P0 | nell | ☐ |
-| 1.5 | SDK skeleton + scripted single-process game → **M1 observed** | P0 | nell | ☐ |
+| 1.2 | domain/board.py — grid, occupancy, barriers, bounds | P0 | nell | ✔ |
+| 1.3 | domain/rules.py — move legality, no diagonals, barrier law, trap detection | P0 | nell | ✔ |
+| 1.4 | domain/scoring.py — all termination events and point allocation | P0 | nell | ✔ |
+| 1.5 | SDK skeleton + scripted single-process game → **M1 observed** | P0 | nell | ✔ |
 
 **M1:** two agents move legally on a 7×7 board; a barrier beyond the quota is rejected;
 coordinate overlap triggers capture.

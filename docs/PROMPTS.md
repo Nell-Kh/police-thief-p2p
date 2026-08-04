@@ -29,4 +29,20 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
 - **Lesson:** encoding the seven rulebook development priorities directly as PRD files + TODO
   phases keeps the commit history aligned with the mandated process.
 
+## Entry 3 — Base logic, test-first
+- **Context:** stage 1 of the rulebook's development order — the physical core, with no
+  communication and no intelligence yet.
+- **Prompt (essence):** "Build the board, the movement and barrier laws, the scoring table and
+  the turn engine from PRD_board_engine. Every quantitative value must come from the signed
+  contract, never from a literal in the code. Write the tests alongside, cover the edge cases
+  named in the PRD (trapping placement, thief with no legal move, quota exhaustion, diagonal
+  rejection), and keep every file within 150 lines."
+- **Output:** `domain/board.py`, `rules.py`, `scoring.py`, `state.py`, `engine.py` plus the
+  `SimulationSdk` facade and a CLI demo; 172 tests at 100% coverage.
+- **Lesson:** naming the *edge cases* in the prompt is what produced them as tests. Asking for
+  "tests" alone yields happy-path tests; asking for the specific boundary conditions from the
+  PRD yields the ones that actually catch rule violations. Making illegal states unrepresentable
+  helped too — because the move set is a fixed mapping, a diagonal move cannot be constructed at
+  all rather than being validated away later.
+
 *(Entries continue as development proceeds.)*
