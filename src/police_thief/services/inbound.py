@@ -1,106 +1,99 @@
-"""Inbound side of a peer: what it does with a message from the opponent.
+"""Inbound side of a peer: the three tools an opponent may call.
 
-The handler is deliberately free of I/O and of transport details, so the same
-object serves the live FastMCP server, the in-process loopback used in tests,
-and the replay tooling. It validates every incoming message before acting on it:
-in a zero-trust game, a peer must never accept a claim it has not checked.
+The wire follows ADR-7 and the reference implementation: ``negotiate`` opens a
+match by exchanging locked terms, ``receive_turn`` delivers one turn message
+(commit hash, hint, scent - never a cleartext position), and ``submit_audit``
+hands over the full disclosure at game end. Everything is validated before it
+is stored: in a zero-trust game, a peer never acts on a message it has not
+checked.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from ..domain import messages
-from ..domain.messages import MessageError
+from ..domain.negotiation import TermsRejectedError, validate_terms
+from ..domain.turnmsg import TurnMessage
 
 
 class HandshakeRejectedError(RuntimeError):
-    """Raised when the opponent's contract does not match ours byte for byte."""
+    """Raised when the opponent's terms do not match ours."""
 
 
 class InboundHandler:
-    """Receives, validates and records the opponent's messages."""
+    """Receives, validates and queues the opponent's calls."""
 
-    def __init__(self, config_sha256: str, expect_role: str) -> None:
-        """Bind the handler to our contract digest and the opponent's role."""
+    def __init__(self, config_sha256: str, scent_lock: str, expect_role: str) -> None:
+        """Bind the handler to our locks and the opponent's role."""
         self._config_sha256 = config_sha256
+        self._scent_lock = scent_lock
         self._expect_role = expect_role
-        self.received: list[dict[str, Any]] = []
+        self.opponent_terms: dict[str, Any] | None = None
+        self.turns: list[TurnMessage] = []
         self.commitments: dict[int, str] = {}
-        self.reveals: dict[int, dict[str, Any]] = {}
-        self.opponent_games_played: int | None = None
-        self.opponent_peer_id: str | None = None
-        self.audit_entries: list[dict[str, Any]] = []
+        self.audit: dict[str, Any] | None = None
 
-    def _accept(self, payload: dict[str, Any]) -> tuple[str, dict[str, Any]]:
-        """Validate an envelope and confirm it came from the expected role."""
-        kind, message = messages.parse(payload)
-        if message["role"] != self._expect_role:
-            raise MessageError(
-                f"{kind}: expected a message from {self._expect_role!r}, "
-                f"got {message['role']!r}"
-            )
-        self.received.append(message)
-        return kind, message
+    @property
+    def expect_role(self) -> str:
+        """The only role whose messages this peer accepts."""
+        return self._expect_role
 
-    def handshake(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Accept the opening message, refusing to play on a contract mismatch.
+    @property
+    def opponent_games_played(self) -> int | None:
+        """The opponent's declared counted-game total, once negotiated."""
+        if self.opponent_terms is None:
+            return None
+        return int(self.opponent_terms.get("games_played", 0))
 
-        Both peers must load a byte-for-byte identical contract; different
-        digests mean different physics, so the match must not start.
+    def negotiate(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Accept the opponent's terms, refusing any lock mismatch.
+
+        Raises:
+            HandshakeRejectedError: on a contract, scent-model or role
+                mismatch - different physics means the race must not start.
         """
-        _, message = self._accept(payload)
-        their_digest = message.get("config_sha256")
-        if their_digest != self._config_sha256:
-            raise HandshakeRejectedError(
-                f"contract mismatch: ours {self._config_sha256[:12]}, "
-                f"theirs {str(their_digest)[:12]}"
+        try:
+            terms = validate_terms(
+                payload,
+                our_config_sha256=self._config_sha256,
+                our_scent_lock=self._scent_lock,
+                expect_role=self._expect_role,
             )
-        self.opponent_games_played = message.get("games_played")
-        self.opponent_peer_id = message.get("peer_id")
+        except TermsRejectedError as error:
+            raise HandshakeRejectedError(str(error)) from error
+        self.opponent_terms = terms
         return {"accepted": True, "config_sha256": self._config_sha256}
 
-    def commit(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Record the opponent's sealed commitment for this step.
+    def receive_turn(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Accept one turn message; receiving it makes it our turn.
 
-        A second commitment for the same step is refused: once sealed, a move
+        A second commitment for the same step is refused - once sealed, a move
         cannot be replaced.
         """
-        _, message = self._accept(payload)
-        step = int(message["step"])
-        if step in self.commitments:
-            raise MessageError(f"commit: step {step} was already committed")
-        self.commitments[step] = str(message["digest"])
-        return {"accepted": True, "step": step}
+        message = TurnMessage.from_wire(payload)
+        if message.sender != self._expect_role:
+            raise HandshakeRejectedError(
+                f"expected a turn from {self._expect_role!r}, got {message.sender!r}"
+            )
+        if message.step in self.commitments:
+            raise HandshakeRejectedError(f"step {message.step} was already committed")
+        self.commitments[message.step] = message.commit
+        self.turns.append(message)
+        return {"ok": True, "step": message.step}
 
-    def ack(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Record the opponent's acknowledgement of our commitment."""
-        _, message = self._accept(payload)
-        return {"accepted": True, "step": message["step"]}
+    def submit_audit(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """Accept the opponent's end-of-game disclosure for the mutual audit."""
+        if not isinstance(payload, dict) or "records" not in payload:
+            raise HandshakeRejectedError("audit payload must carry records")
+        if payload.get("sender") != self._expect_role:
+            raise HandshakeRejectedError(
+                f"expected an audit from {self._expect_role!r}"
+            )
+        self.audit = payload
+        return {"ok": True, "records": len(payload.get("records", []))}
 
-    def reveal(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Record a revealed move and hint, which must follow a commitment."""
-        _, message = self._accept(payload)
-        step = int(message["step"])
-        if step not in self.commitments:
-            raise MessageError(f"reveal: step {step} was never committed")
-        self.reveals[step] = message
-        return {"accepted": True, "step": step, "digest": self.commitments[step]}
-
-    def capture_claim(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Record a capture claim; the truthful answer is sealed in the commit."""
-        _, message = self._accept(payload)
-        return {"accepted": True, "claimed": bool(message["claimed"])}
-
-    def audit(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Receive the opponent's full log for the end-of-game mutual audit."""
-        _, message = self._accept(payload)
-        entries = message.get("entries") or []
-        if not isinstance(entries, list):
-            raise MessageError("audit: entries must be a list")
-        self.audit_entries = entries
-        return {"accepted": True, "entries": len(entries)}
-
-    def committed_digest(self, step: int) -> str | None:
-        """The digest the opponent sealed for ``step``, if any."""
-        return self.commitments.get(step)
+    def next_turn(self) -> TurnMessage | None:
+        """Pop the oldest unprocessed turn message, if any."""
+        if not self.turns:
+            return None
+        return self.turns.pop(0)

@@ -124,4 +124,20 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   TAMPERED. Verifying what the adversary's verifier misses is worth points in a league where
   every opponent forked the same reference.
 
+## Entry 9 — The networked turn loop (phase 7, part 1)
+- **Context:** migrating the wire to the ADR-7 protocol and making two complete runtimes play a
+  real mini-game against each other, blind, over nothing but commitments, hints and scent.
+- **Prompt (essence):** "Replace the legacy message set with negotiate/receive_turn/submit_audit;
+  build WorldView (local truth + inference only - the opponent's position appears nowhere),
+  turn_taking (brain decides, physics validated locally, record sealed, wire message built),
+  turn_receiving (scent -> belief, hint -> trust, public events, endings), and MatchRuntime
+  gluing them per role. Integration test: full match, agreed verdict, mutual two-layer audit."
+- **Output:** rewritten `inbound.py`, `mcp_server.py`, `mcp_client.py`; new `world_view.py`,
+  `turn_taking.py`, `turn_receiving.py`, `match_runtime.py`. 452 tests, 97.8% coverage.
+- **Lesson:** the first full self-play match ended thief-survival 10-5 with the cop's final
+  belief argmax EXACTLY on the thief's true cell - inference is solved, conversion is not: the
+  cop knows where the thief is and still cannot corner it with only 4 barriers spent. The
+  research notebook's tuning target is now obvious: proactive area-denial barriers, not
+  reactive pinches.
+
 *(Entries continue as development proceeds.)*

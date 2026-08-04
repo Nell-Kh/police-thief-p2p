@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..constants import PHASE_TECHNICAL_LOSS
+from ..domain.negotiation import build_terms
 from ..domain.state import GameState
 from ..infra.mcp_client import PeerClient, PeerUnreachableError
 from ..infra.transport import Transport
@@ -36,6 +37,7 @@ class Orchestrator:
             config: the loaded configuration for this role.
             transport: how messages reach the opponent.
         """
+        self._config = config
         self._state: GameState | None = None
         self._recovery = Recovery()
         parts = build_subsystems(config, transport, self._persist, self._recovery.shutdown)
@@ -91,20 +93,29 @@ class Orchestrator:
         """The state the watchdog rescued, and whether shutdown ran."""
         return self._recovery
 
-    def start_match(self, peer_id: str, games_played: int) -> dict[str, Any]:
-        """Open a match: create the board and shake hands with the opponent.
+    def start_match(
+        self,
+        peer_id: str,
+        games_played: int,
+        sub_game: int = 1,
+        step0_commit: str = "unsealed",
+    ) -> dict[str, Any]:
+        """Open a match: create the board and negotiate terms with the opponent.
 
-        The handshake carries our contract digest and our declared game count,
-        so a contract mismatch stops play before the first move.
+        The terms carry our contract digest, scent-model lock, declared game
+        count and Step-0 commitment, so any lock mismatch stops play before
+        the first move.
         """
         self._state = self._sdk.new_game()
         self._watchdog.beat()
-        return self._client.handshake(
-            role=self.role,
-            config_sha256=self._sdk.config_sha256,
-            games_played=games_played,
+        terms = build_terms(
+            self._config,
             peer_id=peer_id,
+            games_played=games_played,
+            sub_game=sub_game,
+            step0_commit=step0_commit,
         )
+        return self._client.negotiate(terms)
 
     def heartbeat(self) -> str:
         """Report liveness to the watchdog and get its verdict."""

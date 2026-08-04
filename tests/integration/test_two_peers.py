@@ -1,121 +1,127 @@
-"""Two peers exchanging the full protocol - the M2 milestone.
+"""A complete networked mini-game between two full runtimes.
 
-Both sides run the same machinery, wired back to back so every message a peer
-sends is received, validated and decoded by the other. The transport is the only
-thing swapped out: in a league match it is an HTTP tunnel, here it is an
-in-process loopback, and the message flow is identical either way.
+The two peers exchange only what the wire allows - commitments, hints, scent,
+public events - play to a verdict, then disclose everything and audit each
+other. Both the hash layer and the physics layer must pass on both sides, and
+the two independently reached results must agree. This is the whole system in
+one test.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import pytest
 
-from police_thief.services.orchestrator import Orchestrator
+from police_thief.domain.audit import audit_disclosure
+from police_thief.services.match_runtime import MatchRuntime
 from police_thief.shared.config import ConfigManager
 
-
-class DeferredTransport:
-    """A loopback whose destination is attached after construction.
-
-    Two peers each need the other to exist first, so the link is completed once
-    both are built.
-    """
-
-    def __init__(self) -> None:
-        self.peer: Orchestrator | None = None
-        self.sent: list[tuple[str, dict[str, Any]]] = []
-
-    def send(self, tool: str, payload: dict[str, Any]) -> dict[str, Any]:
-        """Route a message into the other peer's inbound handler."""
-        if self.peer is None:  # pragma: no cover - wired by the fixture
-            raise RuntimeError("transport is not connected to a peer")
-        self.sent.append((tool, payload))
-        return getattr(self.peer.inbound, tool)(payload)
+SAFETY_CAP = 90
 
 
 @pytest.fixture
-def peers(config_dir: Path) -> tuple[Orchestrator, Orchestrator]:
-    """A police peer and a thief peer, each able to reach the other."""
-    to_thief, to_police = DeferredTransport(), DeferredTransport()
-    police = Orchestrator(ConfigManager.load("police", config_dir), to_thief)
-    thief = Orchestrator(ConfigManager.load("thief", config_dir), to_police)
-    to_thief.peer, to_police.peer = thief, police
+def peers(config_dir: Path) -> tuple[MatchRuntime, MatchRuntime]:
+    police = MatchRuntime(
+        ConfigManager.load("police", config_dir), game_id="itest", sub_game=1,
+        github_commit="deadbeef",
+    )
+    thief = MatchRuntime(
+        ConfigManager.load("thief", config_dir), game_id="itest", sub_game=1,
+        github_commit="deadbeef",
+    )
     return police, thief
 
 
-def test_both_peers_hold_the_same_contract(peers) -> None:
+def play_out(police: MatchRuntime, thief: MatchRuntime) -> None:
+    """Alternate turns - thief first - delivering each message to the other."""
+    for _ in range(SAFETY_CAP):
+        if thief.ended and police.ended:
+            return
+        if not thief.ended:
+            police.on_turn(thief.play_turn())
+        if police.ended and thief.ended:
+            return
+        if not police.ended:
+            thief.on_turn(police.play_turn())
+    raise AssertionError("the match did not terminate inside the safety cap")
+
+
+def test_a_full_match_reaches_an_agreed_verdict(peers) -> None:
     police, thief = peers
-    assert police.sdk.config_sha256 == thief.sdk.config_sha256
+    play_out(police, thief)
+    assert police.result is not None and thief.result is not None
+    assert police.result["type"] == thief.result["type"]
+    assert police.result["winner"] == thief.result["winner"]
+    assert police.result["type"] in {"capture", "survival"}
 
 
-def test_a_handshake_crosses_in_both_directions(peers) -> None:
+def test_the_mutual_audit_passes_on_both_sides(peers) -> None:
     police, thief = peers
-    assert police.start_match(peer_id="team-a", games_played=1)["accepted"]
-    assert thief.start_match(peer_id="team-b", games_played=4)["accepted"]
-    assert thief.inbound.opponent_games_played == 1
-    assert police.inbound.opponent_games_played == 4
+    play_out(police, thief)
+    police_report = audit_disclosure(police.disclosure(), police.contract)
+    thief_report = audit_disclosure(thief.disclosure(), thief.contract)
+    assert police_report.passed, police_report.violations
+    assert thief_report.passed, thief_report.violations
+    assert police_report.verdict == "Verified OK"
+    assert thief_report.verdict == "Verified OK"
 
 
-def test_a_commitment_travels_intact(peers) -> None:
-    """A message leaving one peer is received and decoded correctly by the other."""
+def test_a_forged_disclosure_is_caught_by_the_other_side(peers) -> None:
     police, thief = peers
-    police.start_match(peer_id="team-a", games_played=0)
-    police.client.commit("police", 0, "a" * 64)
-    assert thief.inbound.committed_digest(0) == "a" * 64
+    play_out(police, thief)
+    disclosure = thief.disclosure()
+    turn_records = [r for r in disclosure["records"] if r["payload"].get("type") == "turn"]
+    turn_records[0]["payload"]["position"] = [6, 6]  # rewrite history
+    report = audit_disclosure(disclosure, police.contract)
+    assert not report.passed
+    assert report.verdict == "TAMPERED"
 
 
-def test_a_full_step_of_the_protocol_completes(peers) -> None:
+def test_no_cleartext_position_ever_crossed_the_wire(peers) -> None:
     police, thief = peers
-    police.start_match(peer_id="team-a", games_played=0)
-    thief.start_match(peer_id="team-b", games_played=0)
+    messages = []
+    for _ in range(10):
+        if not thief.ended:
+            message = thief.play_turn()
+            messages.append(message)
+            police.on_turn(message)
+        if not police.ended:
+            message = police.play_turn()
+            messages.append(message)
+            thief.on_turn(message)
+    for message in messages:
+        wire = message.to_wire()
+        assert "position" not in wire and "move" not in wire and "intent" not in wire
 
-    police.client.commit("police", 0, "a" * 64)
-    thief.client.commit("thief", 0, "b" * 64)
-    police.client.acknowledge("police", 0, "b" * 64)
-    thief.client.acknowledge("thief", 0, "a" * 64)
-    police.client.reveal("police", 0, "S", "truth", "moving down the avenue")
-    thief.client.reveal("thief", 0, "N", "lie", "heading for the bridge")
 
-    assert thief.inbound.reveals[0]["move"] == "S"
-    assert police.inbound.reveals[0]["intent"] == "lie"
-
-
-def test_each_peer_walks_its_own_phase_machine(peers) -> None:
-    """Symmetry: both sides run the same state machine independently."""
+def test_scoring_follows_the_agreed_verdict(peers) -> None:
     police, thief = peers
-    for peer in (police, thief):
-        peer.phases.start_turn()
-        peer.phases.transition("COMMITTING")
-        peer.phases.transition("AWAITING_REVEAL")
-        peer.phases.transition("VERIFYING")
-        assert peer.phases.transition("WAITING_FOR_OPPONENT") == "WAITING_FOR_OPPONENT"
+    play_out(police, thief)
+    if police.result["type"] == "capture":
+        assert police.points() == 20 and thief.points() == 5
+    else:
+        assert police.points() == 5 and thief.points() == 10
 
 
-def test_no_positional_data_crosses_the_wire(peers) -> None:
-    """Position may only be implied by free natural language, never encoded."""
-    police, thief = peers
-    police.start_match(peer_id="team-a", games_played=0)
-    police.client.commit("police", 0, "a" * 64)
-    police.client.reveal("police", 0, "S", "truth", "somewhere near the park")
-    for message in thief.inbound.received:
-        assert not {"position", "row", "col", "cell"} & set(message)
+def test_the_match_is_reproducible(config_dir: Path) -> None:
+    """Deterministic brains and templates: the same match replays identically."""
+
+    def run() -> tuple:
+        police = MatchRuntime(
+            ConfigManager.load("police", config_dir), "itest", 1, "deadbeef"
+        )
+        thief = MatchRuntime(
+            ConfigManager.load("thief", config_dir), "itest", 1, "deadbeef"
+        )
+        play_out(police, thief)
+        return police.result, thief.result, police.view.step, thief.view.step
+
+    assert run() == run()
 
 
-def test_the_audit_hands_over_the_whole_log(peers) -> None:
-    police, thief = peers
-    entries = [{"step": step, "nonce": f"n{step}"} for step in range(3)]
-    police.client.audit("police", entries)
-    assert len(thief.inbound.audit_entries) == 3
-
-
-def test_a_dead_peer_does_not_block_the_other(peers) -> None:
-    """One side going dark ends its turn cleanly instead of hanging the match."""
-    police, _ = peers
-    police.start_match(peer_id="team-a", games_played=0)
-    police.fail("the opponent stopped responding")
-    assert police.lost
-    assert police.state.outcome is not None
-    assert police.state.outcome.event == "technical_loss"
+def test_step0_is_sealed_before_the_first_move(peers) -> None:
+    police, _thief = peers
+    assert police.step0["payload"]["type"] == "system_spec"
+    assert police.step0["payload"]["github_commit"] == "deadbeef"
+    assert len(police.step0_commit) == 64

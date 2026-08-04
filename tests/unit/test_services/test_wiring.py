@@ -13,7 +13,9 @@ from police_thief.shared.config import ConfigManager
 
 def test_wiring_assembles_all_five_subsystems(config_dir: Path) -> None:
     config = ConfigManager.load("police", config_dir)
-    opponent = InboundHandler(config_sha256=config.config_sha256, expect_role="police")
+    opponent = InboundHandler(
+        config_sha256=config.config_sha256, scent_lock="x", expect_role="police"
+    )
     parts = build_subsystems(
         config, LoopbackTransport(opponent), on_persist=lambda: None, on_shutdown=lambda: None
     )
@@ -26,11 +28,13 @@ def test_wiring_assembles_all_five_subsystems(config_dir: Path) -> None:
 
 def test_the_inbound_handler_expects_the_opposite_role(config_dir: Path) -> None:
     config = ConfigManager.load("thief", config_dir)
-    opponent = InboundHandler(config_sha256=config.config_sha256, expect_role="thief")
+    opponent = InboundHandler(
+        config_sha256=config.config_sha256, scent_lock="x", expect_role="thief"
+    )
     parts = build_subsystems(
         config, LoopbackTransport(opponent), on_persist=lambda: None, on_shutdown=lambda: None
     )
-    assert parts.inbound._expect_role == "police"
+    assert parts.inbound.expect_role == "police"
 
 
 def test_a_fresh_recovery_holds_nothing() -> None:

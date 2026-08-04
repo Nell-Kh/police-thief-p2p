@@ -100,7 +100,7 @@ hardware and the commit hash.
 ## Phase 7 — Reporting & visualization shell → M7
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 7.0 | Networked turn loop on the ADR-7 wire (negotiate/receive_turn/submit_audit tools) | P0 | nell | ☐ |
+| 7.0 | Networked turn loop on the ADR-7 wire (negotiate/receive_turn/submit_audit tools) | P0 | nell | ✔ |
 | 7.1 | shared/bucket.py (token bucket) + gatekeeper.py (quota, DOS detector, FIFO queue) | P0 | nell | ☐ |
 | 7.2 | infra/email/oauth.py (send-only scope) + sender.py (draft/send) | P0 | nell | ☐ |
 | 7.3 | infra/email/reports.py — JSON attachment, result file assembly | P0 | nell | ☐ |

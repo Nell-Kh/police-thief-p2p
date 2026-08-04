@@ -1,12 +1,10 @@
 """Inbound side over MCP: the tools this peer exposes to its opponent.
 
 Every peer is simultaneously a server and a client - that symmetry is the whole
-point of the peer-to-peer design, and MCP is the project's required standard, so
-it is not swapped for anything else.
-
-This module is a thin adapter: it registers one MCP tool per message kind and
-forwards each straight to the :class:`InboundHandler`, which holds all the
-logic. Keeping it thin is what lets the protocol be tested without a network.
+point of the peer-to-peer design, and MCP is the project's required standard.
+The tool set follows the reference implementation (ADR-7): ``negotiate``,
+``receive_turn`` and ``submit_audit``. This module stays a thin adapter over
+the :class:`InboundHandler`, which holds all the logic.
 """
 
 from __future__ import annotations
@@ -16,18 +14,11 @@ from typing import Any
 from ..services.inbound import InboundHandler
 
 #: The tool names a peer exposes; the client calls these by name.
-TOOL_NAMES = ("handshake", "commit", "ack", "reveal", "capture_claim", "audit")
+TOOL_NAMES = ("negotiate", "receive_turn", "submit_audit")
 
 
 def build_server(handler: InboundHandler, name: str = "police_thief_peer") -> Any:
     """Create a FastMCP server exposing this peer's tools.
-
-    Args:
-        handler: the object that validates and records incoming messages.
-        name: the server's MCP name.
-
-    Returns:
-        A configured ``FastMCP`` instance, ready to run over HTTP.
 
     Raises:
         RuntimeError: if the ``fastmcp`` package is unavailable.
@@ -40,34 +31,19 @@ def build_server(handler: InboundHandler, name: str = "police_thief_peer") -> An
     mcp = FastMCP(name)
 
     @mcp.tool
-    def handshake(payload: dict[str, Any]) -> dict[str, Any]:
-        """Open a match: exchange contract digests and declared game counts."""
-        return handler.handshake(payload)
+    def negotiate(payload: dict[str, Any]) -> dict[str, Any]:
+        """Open a match: exchange locked terms (contract, scent model, counts)."""
+        return handler.negotiate(payload)
 
     @mcp.tool
-    def commit(payload: dict[str, Any]) -> dict[str, Any]:
-        """Receive the opponent's sealed commitment for a step."""
-        return handler.commit(payload)
+    def receive_turn(payload: dict[str, Any]) -> dict[str, Any]:
+        """Receive one turn message; the turn token travels with it."""
+        return handler.receive_turn(payload)
 
     @mcp.tool
-    def ack(payload: dict[str, Any]) -> dict[str, Any]:
-        """Receive the opponent's acknowledgement of our commitment."""
-        return handler.ack(payload)
-
-    @mcp.tool
-    def reveal(payload: dict[str, Any]) -> dict[str, Any]:
-        """Receive a revealed move and verbal hint."""
-        return handler.reveal(payload)
-
-    @mcp.tool
-    def capture_claim(payload: dict[str, Any]) -> dict[str, Any]:
-        """Receive a capture claim, or the truthful answer to ours."""
-        return handler.capture_claim(payload)
-
-    @mcp.tool
-    def audit(payload: dict[str, Any]) -> dict[str, Any]:
-        """Receive the opponent's full log for the end-of-game audit."""
-        return handler.audit(payload)
+    def submit_audit(payload: dict[str, Any]) -> dict[str, Any]:
+        """Receive the opponent's full end-of-game disclosure."""
+        return handler.submit_audit(payload)
 
     return mcp
 
@@ -76,8 +52,7 @@ def serve(handler: InboundHandler, port: int, host: str = "0.0.0.0") -> None:  #
     """Run this peer's MCP server until the process stops.
 
     Bound to all interfaces so a tunnel (ngrok, Localtonet) can expose it to the
-    public internet, which league play requires - localhost is only good enough
-    during early development.
+    public internet, which league play requires.
     """
     server = build_server(handler)
     server.run(transport="http", host=host, port=port)  # pragma: no cover - blocking call

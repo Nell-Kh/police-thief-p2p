@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from ..domain.negotiation import scent_lock_for
 from ..infra.mcp_client import PeerClient
 from ..infra.transport import Transport
 from ..sdk import SimulationSdk
@@ -55,6 +56,7 @@ def build_subsystems(
         client=PeerClient(transport, contract.network, contract.rate_limiter),
         inbound=InboundHandler(
             config_sha256=config.config_sha256,
+            scent_lock=scent_lock_for(contract.pheromones),
             expect_role=sdk.opponent_role(),
         ),
         watchdog=Watchdog(

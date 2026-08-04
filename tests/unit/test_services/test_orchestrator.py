@@ -15,8 +15,14 @@ from police_thief.shared.config import ConfigManager
 @pytest.fixture
 def opponent(config_dir: Path) -> InboundHandler:
     """A thief peer holding the same contract as us."""
+    from police_thief.domain.negotiation import scent_lock_for
+
     thief = ConfigManager.load("thief", config_dir)
-    return InboundHandler(config_sha256=thief.config_sha256, expect_role="police")
+    return InboundHandler(
+        config_sha256=thief.config_sha256,
+        scent_lock=scent_lock_for(thief.contract.pheromones),
+        expect_role="police",
+    )
 
 
 @pytest.fixture
@@ -54,7 +60,7 @@ def test_starting_a_match_shakes_hands_and_creates_the_board(
 def test_a_contract_mismatch_stops_the_match_before_the_first_move(
     config_dir: Path,
 ) -> None:
-    stranger = InboundHandler(config_sha256="f" * 64, expect_role="police")
+    stranger = InboundHandler(config_sha256="f" * 64, scent_lock="e" * 64, expect_role="police")
     police = Orchestrator(ConfigManager.load("police", config_dir), LoopbackTransport(stranger))
     with pytest.raises(HandshakeRejectedError, match="contract mismatch"):
         police.start_match(peer_id="team-a", games_played=0)
@@ -67,7 +73,7 @@ def test_an_unreachable_opponent_becomes_a_technical_loss(
     transport = FlakyTransport(LoopbackTransport(opponent), failures=99)
     police = Orchestrator(ConfigManager.load("police", config_dir), transport)
     police._state = police.sdk.new_game()
-    result = police.run_guarded(lambda: police.client.commit("police", 0, "a" * 64))
+    result = police.run_guarded(lambda: police.client.send_turn({"step": 1}))
     assert result is None
     assert police.lost
     assert police.state.outcome is not None
@@ -76,9 +82,16 @@ def test_an_unreachable_opponent_becomes_a_technical_loss(
 
 def test_a_successful_call_passes_its_result_through(police: Orchestrator) -> None:
     police.start_match(peer_id="team-a", games_played=0)
-    reply = police.run_guarded(lambda: police.client.commit("police", 0, "a" * 64))
+    wire = {
+        "step": 1,
+        "sender": "police",
+        "hint": "on the move",
+        "smell_grid": {"0,0": 0.9},
+        "commit": "a" * 64,
+    }
+    reply = police.run_guarded(lambda: police.client.send_turn(wire))
     assert reply is not None
-    assert reply["accepted"]
+    assert reply["ok"]
     assert not police.lost
 
 
@@ -109,13 +122,17 @@ def test_the_watchdog_rescues_state_when_the_loop_freezes(police: Orchestrator) 
 
 
 def test_the_peer_expects_messages_from_its_opponent_only(police: Orchestrator) -> None:
-    assert police.inbound._expect_role == "thief"
+    assert police.inbound.expect_role == "thief"
 
 
 def test_both_peers_can_be_orchestrated_from_the_same_contract(config_dir: Path) -> None:
     """Symmetry: the thief runs exactly the same machinery as the cop."""
+    from police_thief.domain.negotiation import scent_lock_for
+
+    police_config = ConfigManager.load("police", config_dir)
     police_handler = InboundHandler(
-        config_sha256=ConfigManager.load("police", config_dir).config_sha256,
+        config_sha256=police_config.config_sha256,
+        scent_lock=scent_lock_for(police_config.contract.pheromones),
         expect_role="thief",
     )
     thief = Orchestrator(

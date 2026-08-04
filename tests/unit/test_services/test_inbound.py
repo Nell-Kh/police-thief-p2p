@@ -1,97 +1,111 @@
-"""Tests for the inbound message handler."""
+"""Tests for the inbound handler: the three tools an opponent may call."""
 
 from __future__ import annotations
 
 import pytest
 
-from police_thief.domain import messages
-from police_thief.domain.messages import MessageError
 from police_thief.services.inbound import HandshakeRejectedError, InboundHandler
 
 DIGEST = "c" * 64
+SCENT = "d" * 64
+
+
+def terms(**overrides) -> dict:
+    base = {
+        "role": "thief",
+        "peer_id": "team-b",
+        "games_played": 2,
+        "sub_game": 1,
+        "config_sha256": DIGEST,
+        "scent_lock": SCENT,
+        "step0_commit": "e" * 64,
+    }
+    base.update(overrides)
+    return base
+
+
+def turn_wire(step: int = 1, sender: str = "thief", **overrides) -> dict:
+    base = {
+        "step": step,
+        "sender": sender,
+        "hint": "slipping north",
+        "smell_grid": {"3,3": 0.9},
+        "commit": "a" * 64,
+    }
+    base.update(overrides)
+    return base
 
 
 @pytest.fixture
 def handler() -> InboundHandler:
-    """A police peer expecting messages from the thief."""
-    return InboundHandler(config_sha256=DIGEST, expect_role="thief")
+    """A police peer expecting calls from the thief."""
+    return InboundHandler(config_sha256=DIGEST, scent_lock=SCENT, expect_role="thief")
 
 
-def test_a_matching_handshake_is_accepted(handler: InboundHandler) -> None:
-    reply = handler.handshake(messages.handshake("thief", DIGEST, 2, "team-b"))
+def test_matching_terms_are_accepted(handler: InboundHandler) -> None:
+    reply = handler.negotiate(terms())
     assert reply["accepted"]
     assert handler.opponent_games_played == 2
-    assert handler.opponent_peer_id == "team-b"
 
 
 def test_a_contract_mismatch_refuses_the_match(handler: InboundHandler) -> None:
-    """Different digests mean different physics: the match must not start."""
     with pytest.raises(HandshakeRejectedError, match="contract mismatch"):
-        handler.handshake(messages.handshake("thief", "f" * 64, 0, "team-b"))
+        handler.negotiate(terms(config_sha256="f" * 64))
 
 
-def test_a_message_from_the_wrong_role_is_refused(handler: InboundHandler) -> None:
-    """A peer never accepts a message claiming to be from itself."""
-    with pytest.raises(MessageError, match="expected a message from 'thief'"):
-        handler.commit(messages.commit("police", 0, "a" * 64))
+def test_a_scent_model_mismatch_refuses_the_match(handler: InboundHandler) -> None:
+    with pytest.raises(HandshakeRejectedError, match="scent-model mismatch"):
+        handler.negotiate(terms(scent_lock="f" * 64))
 
 
-def test_a_commitment_is_recorded(handler: InboundHandler) -> None:
-    handler.commit(messages.commit("thief", 0, "a" * 64))
-    assert handler.committed_digest(0) == "a" * 64
+def test_terms_from_the_wrong_role_are_refused(handler: InboundHandler) -> None:
+    with pytest.raises(HandshakeRejectedError, match="expected terms from 'thief'"):
+        handler.negotiate(terms(role="police"))
+
+
+def test_no_games_count_before_negotiation(handler: InboundHandler) -> None:
+    assert handler.opponent_games_played is None
+
+
+def test_a_turn_is_queued_and_its_commitment_recorded(handler: InboundHandler) -> None:
+    reply = handler.receive_turn(turn_wire(step=3))
+    assert reply["ok"]
+    assert handler.commitments[3] == "a" * 64
+    message = handler.next_turn()
+    assert message is not None and message.step == 3
+    assert handler.next_turn() is None
+
+
+def test_a_turn_from_the_wrong_role_is_refused(handler: InboundHandler) -> None:
+    with pytest.raises(HandshakeRejectedError, match="expected a turn from 'thief'"):
+        handler.receive_turn(turn_wire(sender="police"))
 
 
 def test_a_second_commitment_for_a_step_is_refused(handler: InboundHandler) -> None:
     """Once sealed, a move cannot be replaced."""
-    handler.commit(messages.commit("thief", 0, "a" * 64))
-    with pytest.raises(MessageError, match="already committed"):
-        handler.commit(messages.commit("thief", 0, "b" * 64))
+    handler.receive_turn(turn_wire(step=1))
+    with pytest.raises(HandshakeRejectedError, match="already committed"):
+        handler.receive_turn(turn_wire(step=1, commit="b" * 64))
 
 
-def test_an_acknowledgement_is_accepted(handler: InboundHandler) -> None:
-    assert handler.ack(messages.ack("thief", 0, "a" * 64))["accepted"]
+def test_a_cleartext_position_is_refused_at_the_door(handler: InboundHandler) -> None:
+    from police_thief.domain.turnmsg import TurnMessageError
+
+    with pytest.raises(TurnMessageError, match="must not carry 'position'"):
+        handler.receive_turn(turn_wire(position=[3, 3]))
 
 
-def test_a_reveal_must_follow_a_commitment(handler: InboundHandler) -> None:
-    """Revealing a move that was never committed is meaningless - and refused."""
-    with pytest.raises(MessageError, match="never committed"):
-        handler.reveal(messages.reveal("thief", 0, "N", "truth", "north side"))
+def test_an_audit_disclosure_is_stored(handler: InboundHandler) -> None:
+    reply = handler.submit_audit({"sender": "thief", "records": [1, 2], "result_claim": {}})
+    assert reply["records"] == 2
+    assert handler.audit is not None
 
 
-def test_a_reveal_after_a_commitment_is_recorded(handler: InboundHandler) -> None:
-    handler.commit(messages.commit("thief", 0, "a" * 64))
-    reply = handler.reveal(messages.reveal("thief", 0, "N", "lie", "by the bridge"))
-    assert reply["digest"] == "a" * 64
-    assert handler.reveals[0]["move"] == "N"
+def test_an_audit_without_records_is_refused(handler: InboundHandler) -> None:
+    with pytest.raises(HandshakeRejectedError, match="must carry records"):
+        handler.submit_audit({"sender": "thief"})
 
 
-def test_a_capture_claim_is_recorded(handler: InboundHandler) -> None:
-    assert handler.capture_claim(messages.capture_claim("thief", 3, True))["claimed"]
-
-
-def test_an_audit_message_stores_the_entries(handler: InboundHandler) -> None:
-    reply = handler.audit(messages.audit("thief", [{"step": 0}, {"step": 1}]))
-    assert reply["entries"] == 2
-    assert len(handler.audit_entries) == 2
-
-
-def test_an_audit_with_malformed_entries_is_refused(handler: InboundHandler) -> None:
-    payload = messages.audit("thief", [])
-    payload["entries"] = "not-a-list"
-    with pytest.raises(MessageError, match="entries must be a list"):
-        handler.audit(payload)
-
-
-def test_an_empty_audit_is_accepted(handler: InboundHandler) -> None:
-    payload = messages.audit("thief", [])
-    assert handler.audit(payload)["entries"] == 0
-
-
-def test_every_accepted_message_is_recorded(handler: InboundHandler) -> None:
-    handler.handshake(messages.handshake("thief", DIGEST, 0, "team-b"))
-    handler.commit(messages.commit("thief", 0, "a" * 64))
-    assert [message["kind"] for message in handler.received] == ["handshake", "commit"]
-
-
-def test_an_unknown_step_has_no_digest(handler: InboundHandler) -> None:
-    assert handler.committed_digest(99) is None
+def test_an_audit_from_the_wrong_role_is_refused(handler: InboundHandler) -> None:
+    with pytest.raises(HandshakeRejectedError, match="expected an audit"):
+        handler.submit_audit({"sender": "police", "records": []})
