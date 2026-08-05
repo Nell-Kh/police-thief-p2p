@@ -35,6 +35,15 @@ def _reach(field: dict[Cell, int], cell: Cell) -> int:
     return steps if steps >= 0 else UNREACHABLE
 
 
+def _anchored(board: Board, cell: Cell) -> bool:
+    """Whether a stone here extends a real cut - an edge or an existing wall."""
+    row, col = cell
+    if row in (0, board.size - 1) or col in (0, board.size - 1):
+        return True
+    neighbours = ((row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1))
+    return any(n in board.barriers for n in neighbours)
+
+
 def region_size(board: Board, cop: Cell, thief: Cell) -> int:
     """How many cells the thief reaches strictly before the cop.
 
@@ -57,12 +66,45 @@ class RegionPoliceBrain(BlindPoliceBrain):
     #: Region size at which every sealed exit is worth a barrier.
     ENDGAME = 4
 
+    def __init__(self, role: str, contract) -> None:
+        """Bind the brain and start the repetition memory empty."""
+        super().__init__(role, contract)
+        self._seen: set[tuple[Cell, Cell, int]] = set()
+
     def _decide_move(self, view: BrainView) -> Action:
-        """Trap when adjacent; otherwise the option with the best score key."""
+        """Trap when adjacent; otherwise the option with the best score key.
+
+        A repeated ``(cop, thief, stones)`` state is the signature of the
+        parity dance - two equal-speed walkers orbiting a pillar forever. The
+        answer is always the same: buy a stone. One anchored barrier cuts the
+        orbit ring and the region hunt converts what pursuit never could.
+        """
         if view.barriers_left > 0 and self._can_trap(view):
             return Action(move=MOVE_STAY, barrier=view.target)
+        state = (view.position, view.target, len(view.board.barriers))
+        repeated = state in self._seen
+        self._seen.add(state)
+        if repeated and view.barriers_left > 0:
+            stone = self._dance_breaker(view)
+            if stone is not None:
+                return Action(move=MOVE_STAY, barrier=stone)
         options = self._move_options(view) + self._barrier_options(view)
         return min(options)[1]
+
+    def _dance_breaker(self, view: BrainView) -> Cell | None:
+        """The best cycle-cutting stone: anchored, hunt-preserving, region-min."""
+        best_key: tuple[int, str] | None = None
+        best: Cell | None = None
+        for cell in barrier_placements(view.board, view.position):
+            if cell in (view.position, view.target) or not _anchored(view.board, cell):
+                continue
+            trial = Board(view.board.size, set(view.board.barriers) | {cell})
+            if _reach(distance_field(trial, view.position), view.target) >= UNREACHABLE:
+                continue  # never wall ourselves away from the hunt
+            key = (region_size(trial, view.position, view.target), str(cell))
+            if best_key is None or key < best_key:
+                best_key, best = key, cell
+        return best
 
     def _move_options(self, view: BrainView) -> list[tuple[ScoreKey, Action]]:
         """Every displacing step, scored on the board as it stands.

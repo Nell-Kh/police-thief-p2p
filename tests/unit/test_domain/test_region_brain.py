@@ -74,10 +74,37 @@ def test_without_quota_the_cop_still_moves(cop: RegionPoliceBrain) -> None:
     assert action.barrier is None
 
 
-def test_decisions_are_deterministic(cop: RegionPoliceBrain) -> None:
+def test_decisions_are_deterministic_across_fresh_brains(config: ConfigManager) -> None:
+    """Same state, fresh memory: identical decision (replay reproducibility)."""
     board = Board(7)
-    first = cop.decide(view(board, (3, 0), (3, 6)))
-    assert all(cop.decide(view(board, (3, 0), (3, 6))) == first for _ in range(3))
+    decisions = {
+        RegionPoliceBrain(ROLE_POLICE, config.contract).decide(view(board, (3, 0), (3, 6)))
+        for _ in range(3)
+    }
+    assert len(decisions) == 1
+
+
+def test_a_repeated_state_buys_a_dance_breaking_stone(cop: RegionPoliceBrain) -> None:
+    """The parity-dance signature - same state twice - triggers a barrier."""
+    board = Board(7, [(1, 5)])  # the pillar the thief orbits
+    first = cop.decide(view(board, (2, 5), (0, 5)))
+    again = cop.decide(view(board, (2, 5), (0, 5)))
+    assert first.barrier is None  # first visit: normal hunt
+    assert again.move == MOVE_STAY and again.barrier is not None  # the stone
+    from police_thief.domain.brain.region import _anchored
+
+    assert _anchored(board, again.barrier)
+
+
+def test_the_dance_breaker_never_walls_off_the_hunt(cop: RegionPoliceBrain) -> None:
+    """The chosen stone must leave a path from cop to the believed thief."""
+    from police_thief.domain.brain.pathfind import distance_field
+
+    board = Board(7, [(1, 5)])
+    cop.decide(view(board, (2, 5), (0, 5)))
+    action = cop.decide(view(board, (2, 5), (0, 5)))
+    trial = Board(7, set(board.barriers) | {action.barrier})
+    assert distance_field(trial, (2, 5)).get((0, 5), -1) >= 0
 
 
 @pytest.mark.parametrize("starts", [((0, 0), (6, 6)), ((3, 3), (0, 6)), ((6, 0), (0, 3))])

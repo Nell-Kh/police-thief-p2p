@@ -228,4 +228,26 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   find: the test suite caught OUR OWN vague template leaking geometry - "right now"
   parses as east. The adversarial mindset applies to your own sentences too.
 
+## Entry 14 — Red-teaming the wall cop (phase 8, part 4)
+- **Context:** the wall cop's 1900/1900 was measured against thieves that don't know the
+  wall exists - but league opponents can read our public repo. The only honest test is to
+  attack our own agent with everything we would use against it.
+- **Prompt (essence):** "Build thieves designed specifically to break the wall cop - camp
+  the door, flip sides while the wall is open, park on the missing stones - and if any of
+  them finds a hole, fix the cop and re-validate everything exhaustively."
+- **Output:** the side flipper found a real hole (2/192 survivals). The trace was ironic:
+  the cop's own hunt stone had become a *pillar*, and the thief orbited it in a 2-cycle -
+  the parity dance reborn inside a pocket, where the region hunt's exit-sealing cannot
+  reach. Fix: a repeated ``(cop, thief, stones)`` state now buys an anchored,
+  hunt-preserving stone that cuts the orbit ring (in ``region.py``, so both cop brains
+  inherit it). Re-validated exhaustively: all six archetypes fall 1900/1900, worst case 32
+  of 35 steps, 10 of 14 stones. 535 tests, 97.7%.
+- **Lesson:** validation breadth is not adversarial depth - no archetype in the zoo ever
+  triggered the pillar orbit, because none of them had a reason to circle a stone; only a
+  thief *designed against the wall* wandered into the one geometry that resurrects the
+  dance. And the fix required instance memory, which quietly broke the determinism test -
+  the right repair was to redefine determinism (fresh brain, same state, same decision),
+  not to weaken the feature. Every strategy improvement is also a test-suite design
+  question.
+
 *(Entries continue as development proceeds.)*
