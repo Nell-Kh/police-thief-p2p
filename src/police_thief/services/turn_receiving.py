@@ -14,6 +14,10 @@ from ..shared.schema import GameContract
 from .enforcement import protocol_violation
 from .world_view import WorldView
 
+#: Belief multiplier for a scent-verified capture claim - a near-pin that
+#: still leaves mass elsewhere, so a clever forged claim cannot blind us.
+CLAIM_PIN_FACTOR = 25.0
+
 
 def receive_turn(view: WorldView, message: TurnMessage, contract: GameContract) -> None:
     """Fold one opponent turn into this peer's world view.
@@ -35,7 +39,7 @@ def receive_turn(view: WorldView, message: TurnMessage, contract: GameContract) 
         view.belief.observe_region(appraisal.region, appraisal.factor)
     view.note(f"opponent step {message.step}: hint {appraisal.verdict}")
     _apply_barrier(view, message)
-    _apply_capture_claim(view, message, contract)
+    _apply_capture_claim(view, message, contract, scent)
     _apply_claim_response(view, message, contract)
     _apply_win_claim(view, message, contract)
 
@@ -53,11 +57,17 @@ def _apply_barrier(view: WorldView, message: TurnMessage) -> None:
             view.result = {"type": "capture", "winner": "police", "how": "trapping barrier"}
 
 
-def _apply_capture_claim(view: WorldView, message: TurnMessage, contract: GameContract) -> None:
+def _apply_capture_claim(
+    view: WorldView, message: TurnMessage, contract: GameContract, scent: dict
+) -> None:
     """The cop announced its cell; the thief must answer truthfully next turn.
 
     If the claim matches our cell, the game is over - the truth duty is
-    absolute, and the audit would expose a lie anyway.
+    absolute, and the audit would expose a lie anyway. And the claim cuts
+    both ways: it names the cop's own cell, so when the cop's scent in the
+    very same message burns fresh at the claimed spot, the claim is verified
+    ground truth and our belief about the cop pins to it. An unverified
+    claim (a possible lie) moves nothing.
     """
     if message.capture_claim is None or view.role != "thief":
         return
@@ -66,6 +76,10 @@ def _apply_capture_claim(view: WorldView, message: TurnMessage, contract: GameCo
     view.claim_gaps.append(
         abs(claim[0] - view.position[0]) + abs(claim[1] - view.position[1])
     )
+    fresh = contract.pheromones.center_intensity * (1.0 - contract.pheromones.decay)
+    if scent.get(claim, 0.0) >= 0.5 * fresh:
+        view.belief.observe_region([claim], CLAIM_PIN_FACTOR)
+        view.note(f"cop's claim at {claim} verified by its own scent - belief pinned")
     if tuple(message.capture_claim) == view.position:
         view.result = {"type": "capture", "winner": "police", "how": "capture claim"}
         view.note("caught - answering truthfully")

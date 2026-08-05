@@ -356,6 +356,28 @@ CELLS = [
         "          f'worst capture at step {worst} (pre-fix: SideFlipper survived 2)')"
     ),
     md(
+        "### 9b. The speed-margin frontier: a hybrid, and why it is not the default\n\n"
+        "The wall cop pays ~25 steps even against thieves the region hunt kills in ~9, "
+        "and every step is two more messages over a possibly-flaky tunnel. A hybrid was "
+        "built: open in hunt mode, commit irreversibly to the wall on the first of "
+        "three tripwires (region stalled 2 turns; region still > 14 at step 4; step 12 "
+        "reached). Exhaustive verdict over all 1900 starts: **1900/1900 at a mean of "
+        "~12 steps** against reference-style thieves - but **1891/1900** against our "
+        "own elite evader; nine starts slip away, because the opening hunt steps pull "
+        "the cop off its wall route and the wall finishes too late. The frontier is "
+        "structural, so the choice ships in configuration: `WallPoliceBrain` (the "
+        "guarantee) is the default; `HybridPoliceBrain` is the documented speed "
+        "profile for opponents that have already shown a reference-fork thief. The "
+        "192-start grid, for the record, showed the hybrid at 192/192 against the "
+        "evader - only the exhaustive sweep exposed the nine escapes. Sample density "
+        "is not proof.\n\n"
+        "A second wire upgrade landed alongside: the cop's capture claims name its own "
+        "cell, and when the cop's scent in the same message burns fresh at the claimed "
+        "spot, the claim is verified ground truth - the thief's belief about the cop "
+        "pins to it (factor 25, never a full collapse, so a forged claim with no scent "
+        "behind it moves nothing)."
+    ),
+    md(
         "## 10. Transfer check: belief instead of truth, over the real wire\n\n"
         "Everything above hands the cop the thief's true cell. One full networked "
         "self-play match - commitments, scent, hints, belief maps, the lot - checks that "

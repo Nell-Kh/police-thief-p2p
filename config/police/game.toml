@@ -17,8 +17,11 @@ opponent_url = "http://127.0.0.1:8802/mcp"     # the only thing I know about the
 turn_timeout_seconds = 180
 
 [strategy]
-# The competition brain: opening wall + region hunt (see notebooks/analysis.ipynb).
-# Beats every thief archetype 1900/1900, max 29 of 35 steps, max 8 of 14 barriers.
+# The competition brain (see notebooks/analysis.ipynb). Two proven choices:
+#  wall:WallPoliceBrain    - the guarantee: 1900/1900 vs everything, max 29/35 steps.
+#  hybrid:HybridPoliceBrain - hunt-first: ~12-step kills vs reference-style thieves
+#                             (1900/1900), but 1891/1900 vs an elite evader.
+# Default: the guarantee. Switch to hybrid against a known reference-fork opponent.
 police_class = "police_thief.domain.brain.wall:WallPoliceBrain"
 
 [deception]

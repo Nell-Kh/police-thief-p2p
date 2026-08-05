@@ -271,4 +271,24 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   the enforcement layer could not tell our shortcuts from an attack, which is exactly
   the point.
 
+## Entry 16 — The speed-margin frontier and the verified-claim pin (phase 8, part 6)
+- **Context:** capture pays 20 points at step 9 or step 29, but every step is two more
+  messages over a possibly-flaky tunnel - speed is operational safety. Could the cop have
+  both the wall's guarantee and the hunt's speed?
+- **Prompt (essence):** "Build a hybrid - hunt while the hunt works, commit to the wall
+  the moment it stalls - and validate EXHAUSTIVELY, not on a sample grid. Separately: the
+  cop's capture claims name its own cell; make the thief use that."
+- **Output:** `brain/hybrid.py` (three commit tripwires: region stalled 2 turns / region
+  still >14 at step 4 / step 12 deadline) as a documented, non-default config choice;
+  the verified-claim belief pin in `turn_receiving.py` (a claim whose cell burns with
+  the cop's own fresh scent in the same message pins the thief's cop-belief, factor 25;
+  an unscented claim - a possible lie - moves nothing). 568 tests, 97.9%.
+- **Lesson:** the 192-start grid said the hybrid was perfect (192/192 vs the elite
+  evader); the exhaustive 1900-pair sweep found nine escapes the grid never sampled.
+  Sample density is not proof - and the honest answer to a structural trade-off is not a
+  cleverer threshold but a *configuration choice with published numbers*: the wall's
+  guarantee ships as default, the hybrid's speed (mean ~12 vs ~25 steps, 1900/1900
+  against reference-style thieves) is opt-in for opponents that have already shown a
+  weak thief.
+
 *(Entries continue as development proceeds.)*
