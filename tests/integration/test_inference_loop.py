@@ -52,21 +52,23 @@ def test_m4_a_truthful_report_sharpens_the_pursuit(config: ConfigManager) -> Non
     belief = BeliefMap(board)
     trust = TrustModel(thief_scent.expected_fresh_trail(), board.size)
 
-    # The thief walks north along the eastern side for three turns.
-    for cell in [(5, 5), (4, 5), (3, 5)]:
+    # The thief walks north along the eastern side, announcing every step
+    # honestly; the appraiser needs consecutive snapshots because it judges
+    # the MOTION of the scent centroid, not a single still image.
+    appraisal = None
+    for step, cell in enumerate([(3, 5), (2, 5), (1, 5)], start=1):
         thief_scent.advance(cell)
-    hint = hint_for(config, step=3, intent="truth", direction="N")
-
-    snapshot = thief_scent.snapshot()
-    belief.diffuse()
-    belief.observe_scent(snapshot)
-    appraisal = trust.appraise(hint, snapshot)
-    belief.observe_region(appraisal.region, appraisal.factor)
+        snapshot = thief_scent.snapshot()
+        belief.diffuse()
+        belief.observe_scent(snapshot)
+        hint = hint_for(config, step=step, intent="truth", direction="N")
+        appraisal = trust.appraise(hint, snapshot)
+        belief.observe_region(appraisal.region, appraisal.factor)
 
     assert appraisal.verdict == "corroborated"
     assert trust.trust > 0.5
     target = belief.argmax()
-    assert target in {(2, 5), (3, 5), (4, 5)}  # locked onto the eastern trail
+    assert target in {(0, 5), (1, 5), (2, 5)}  # locked onto the eastern trail
 
     cop = EnhancedPoliceBrain("police", contract)
     action = cop.decide(
@@ -90,17 +92,18 @@ def test_m4_a_lying_report_is_discounted(config: ConfigManager) -> None:
     belief = BeliefMap(board)
     trust = TrustModel(thief_scent.expected_fresh_trail(), board.size)
 
-    # The thief is actually in the south-east but claims north (a lie).
-    for cell in [(6, 4), (6, 5), (5, 5)]:
+    # The thief walks south along the eastern side while claiming north
+    # every turn - the mirrored lie the snapshot judge could not catch.
+    appraisal = None
+    for step, cell in enumerate([(4, 5), (5, 5), (6, 5)], start=1):
         thief_scent.advance(cell)
-    hint = hint_for(config, step=3, intent="lie", direction="S")
-    assert "north" in hint.lower()
-
-    snapshot = thief_scent.snapshot()
-    belief.diffuse()
-    belief.observe_scent(snapshot)
-    appraisal = trust.appraise(hint, snapshot)
-    belief.observe_region(appraisal.region, appraisal.factor)
+        snapshot = thief_scent.snapshot()
+        belief.diffuse()
+        belief.observe_scent(snapshot)
+        hint = hint_for(config, step=step, intent="lie", direction="S")
+        assert "north" in hint.lower()
+        appraisal = trust.appraise(hint, snapshot)
+        belief.observe_region(appraisal.region, appraisal.factor)
 
     assert appraisal.verdict == "contradicted"
     assert trust.trust < 0.5

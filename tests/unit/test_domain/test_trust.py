@@ -63,18 +63,18 @@ def test_trust_starts_neutral(model: TrustModel) -> None:
 
 
 def test_the_chapter_4_lie_is_caught(model: TrustModel) -> None:
-    """Claimed north, measured silence there, fresh trail in the south-east."""
-    scent = {(5, 5): 0.81, (5, 4): 0.63}
-    appraisal = model.appraise("I moved north", scent)
+    """Claimed north while the fresh trail visibly walked south."""
+    model.appraise("warming up", {(4, 5): 0.81, (3, 5): 0.63})  # baseline turn
+    appraisal = model.appraise("I moved north", {(5, 5): 0.81, (4, 5): 0.63})
     assert appraisal.verdict == "contradicted"
     assert appraisal.factor < 1.0
     assert model.trust < INITIAL_TRUST
 
 
 def test_a_truthful_hint_is_corroborated(model: TrustModel) -> None:
-    """Fresh trail exactly where the opponent said it walked."""
-    scent = {(1, 4): 0.81, (1, 3): 0.63}
-    appraisal = model.appraise("I moved north", scent)
+    """The fresh trail moved exactly where the opponent said it walked."""
+    model.appraise("warming up", {(2, 4): 0.81, (3, 4): 0.63})  # baseline turn
+    appraisal = model.appraise("I moved north", {(1, 4): 0.81, (2, 4): 0.63})
     assert appraisal.verdict == "corroborated"
     assert appraisal.factor > 1.0
     assert model.trust > INITIAL_TRUST
@@ -96,26 +96,28 @@ def test_weak_evidence_stays_uninformative(model: TrustModel) -> None:
 
 
 def test_repeated_lies_erode_trust_toward_zero(model: TrustModel) -> None:
-    scent = {(5, 5): 0.81}
-    for _ in range(6):
-        model.appraise("heading north", scent)
+    """Six turns of walking south while claiming north every single time."""
+    model.appraise("warming up", {(0, 3): 0.81})
+    for row in range(1, 7):
+        model.appraise("heading north", {(row, 3): 0.81})
     assert model.trust < 0.1
 
 
 def test_repeated_truth_builds_trust_toward_one(model: TrustModel) -> None:
-    scent = {(1, 1): 0.81}
-    for _ in range(6):
-        model.appraise("heading north", scent)
+    """Six turns of walking north, honestly announced every single time."""
+    model.appraise("warming up", {(6, 3): 0.81})
+    for row in range(5, -1, -1):
+        model.appraise("heading north", {(row, 3): 0.81})
     assert model.trust > 0.9
 
 
 def test_a_liar_earns_weaker_damping_credibility(model: TrustModel) -> None:
     """The lower the trust, the harder a contradicted region is damped."""
-    scent = {(5, 5): 0.81}
-    first = model.appraise("north", scent).factor
-    for _ in range(4):
-        model.appraise("north", scent)
-    later = model.appraise("north", scent).factor
+    model.appraise("warming up", {(0, 5): 0.81})
+    first = model.appraise("north", {(1, 5): 0.81}).factor
+    for row in range(2, 6):
+        model.appraise("north", {(row, 5): 0.81})
+    later = model.appraise("north", {(6, 5): 0.81}).factor
     assert later < first < 1.0
 
 

@@ -21,6 +21,10 @@ class ProviderError(RuntimeError):
 #: Direction letters to spoken words, for prompt building and templates.
 DIRECTION_WORDS = {"N": "north", "S": "south", "E": "east", "W": "west"}
 
+#: Hint styles: a directional hint claims a heading; a vague one claims nothing.
+STYLE_DIRECTIONAL = "directional"
+STYLE_VAGUE = "vague"
+
 
 @dataclass(frozen=True)
 class HintRequest:
@@ -38,19 +42,26 @@ class HintRequest:
     map_area: str
     max_words: int
     step: int
+    style: str = STYLE_DIRECTIONAL
 
     def __post_init__(self) -> None:
-        """Validate the intent flag."""
+        """Validate the intent flag and the hint style."""
         if self.intent not in INTENTS:
             raise ValueError(f"intent must be one of {INTENTS}, got {self.intent!r}")
+        if self.style not in (STYLE_DIRECTIONAL, STYLE_VAGUE):
+            raise ValueError(f"unknown hint style {self.style!r}")
 
     def claimed_direction(self) -> str | None:
-        """The direction the hint should point at, honouring the intent.
+        """The direction the hint should point at, honouring intent and style.
 
-        A lie deterministically claims the opposite of the true direction, so
-        the same request always produces the same deception - reproducibility
-        matters more than variety here.
+        A vague hint claims nothing - atmosphere only, no verifiable geometry;
+        against an opponent who cross-checks hints with scent, silence is the
+        only unfalsifiable statement. A lie deterministically claims the
+        opposite of the true direction, so the same request always produces
+        the same deception - reproducibility matters more than variety here.
         """
+        if self.style == STYLE_VAGUE:
+            return None
         opposite = {"N": "S", "S": "N", "E": "W", "W": "E"}
         if self.intent == INTENT_TRUTH:
             return self.true_direction

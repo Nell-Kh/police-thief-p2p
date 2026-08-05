@@ -22,6 +22,14 @@ turn_timeout_seconds = 180
 # the enhanced thief survived 0; still survives everything pursuit-style.
 thief_class = "police_thief.domain.brain.evade:EvadeThiefBrain"
 
+[deception]
+# The cop's capture claims reveal its belief every turn. Adaptive: while the
+# claims wander, feed directional lies; once they land close, go vague -
+# against a scent-verifier, silence is the only unfalsifiable hint.
+mode = "adaptive"
+tracked_gap = 2
+window = 3
+
 [trash_talk]
 # How the banter/deception text is produced. The MOVE is always pure Python.
 provider = "claude_api"

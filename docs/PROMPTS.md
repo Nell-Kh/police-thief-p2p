@@ -206,4 +206,26 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   one strategy immune to belief error - confirmed by an agreed capture verdict in full
   networked self-play.
 
+## Entry 13 — The verbal duel: motion judge and adaptive deception (phase 8, part 3)
+- **Context:** the hint is the game's only lying channel, and neither side of it had been
+  stress-tested: what do systematic lies do to a cop's belief, and what should our own
+  hints say?
+- **Prompt (essence):** "Measure belief corruption per hint policy (honest/mislead/vague)
+  against a naive cop and against our verifier; harden whatever the measurement breaks;
+  make our own hint policy configurable and adaptive; every threshold justified by a
+  number."
+- **Output:** temporal `TrustModel` (scent-centroid displacement dotted with the claimed
+  direction), `services/deception.py` (DeceptionPolicy: honest/mislead/vague/adaptive,
+  driven by the opponent's own capture-claim distances), vague hint style through every
+  provider (template pool + Haiku prompt), `[deception]` config sections; notebook section
+  10; 533 tests, 97.8%.
+- **Lesson:** three numbers carried the whole design. Lies inflated a hint-following cop's
+  belief error 0.56 -> 2.69 cells - and fooled our own snapshot judge identically, because
+  a walk north and its mirrored lie scent the same cells (a still image cannot verify a
+  motion claim; two attempted static hardenings failed before this became obvious). The
+  temporal judge flipped the sign: against it, lying (0.62) is now worse than silence
+  (1.00) because every detected lie damps the falsely claimed region. And the funniest
+  find: the test suite caught OUR OWN vague template leaking geometry - "right now"
+  parses as east. The adversarial mindset applies to your own sentences too.
+
 *(Entries continue as development proceeds.)*

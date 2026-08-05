@@ -19,6 +19,7 @@ from ..infra.llm import TokenLedger, build_provider
 from ..shared.config import ConfigManager
 from ..shared.sysinfo import hardware_spec
 from ..shared.version import __version__
+from .deception import policy_from_config
 from .runtime import configured_brain
 from .turn_receiving import receive_turn
 from .turn_taking import concession_message, take_turn
@@ -44,6 +45,7 @@ class MatchRuntime:
             model=str(config.private_value("llm", "model", "")),
         )
         self.book = Logbook(game_id, sub_game, config.role)
+        self.policy = policy_from_config(config)
         self._conceded = False
         self.step0 = self.book.append(
             step0_record(
@@ -81,6 +83,7 @@ class MatchRuntime:
             provider=self.provider,
             ledger=self.ledger,
             book=self.book,
+            policy=self.policy,
         )
         if (
             self.view.role == "thief"

@@ -324,7 +324,34 @@ CELLS = [
         "print('verdicts agree:', police.result['winner'] == thief.result['winner'])"
     ),
     md(
-        "## 10. Token budget analysis (guidelines ch. 11)\n\n"
+        "## 10. The verbal duel: lies, vagueness, and the motion judge\n\n"
+        "The hint is the game's only deception channel - scent and movement cannot lie. "
+        "Phase 8 measured what a lying thief does to a cop's belief (mean argmax error, "
+        "in cells, over a full match against a pursuit cop that follows hints):\n\n"
+        "| thief's hint policy | naive cop (trusts hints) | our cop (motion judge) |\n"
+        "|---|---|---|\n"
+        "| honest | 0.56 | **0.38** |\n"
+        "| mislead (systematic lies) | **2.69** | 0.62 |\n"
+        "| vague (no geometry) | 1.00 | 1.00 |\n\n"
+        "Two findings shaped the shipped design. **First**: a single scent snapshot "
+        "cannot verify a motion claim - a walk north and its mirrored lie scent the same "
+        "cells, so our original snapshot judge let lies inflate our error to 2.69. The "
+        "shipped TrustModel instead tracks the *displacement of the fresh-scent "
+        "centroid* between consecutive turns and dots it with the claimed direction: "
+        "truth corroborates, the mirror lie contradicts. Against it, lying is now "
+        "*worse than silence* (0.62 vs 1.00): every detected lie damps the falsely "
+        "claimed region, which is free negative evidence. **Second**: our own hints are "
+        "governed by a configurable DeceptionPolicy. The cop's capture claims leak "
+        "its belief argmax every turn, so the thief adapts - while claims wander, feed "
+        "directional lies (poisons naive cops at 2.69); once claims land close, go "
+        "vague, because against a motion judge the only unfalsifiable hint is one that "
+        "claims nothing. The cop, which has no claim-feedback channel, ships vague "
+        "permanently: zero leak, zero risk. And the wall cop's capture step is "
+        "identical under every opponent hint policy - the opening wall consults no "
+        "belief at all, so there is nothing for a lie to poison."
+    ),
+    md(
+        "## 11. Token budget analysis (guidelines ch. 11)\n\n"
         "The verbal layer is the only token consumer. The cost model is parametric so the "
         "table survives price changes - counts are what the design fixes:"
     ),
@@ -351,7 +378,7 @@ CELLS = [
         "      'template (0 tokens), so a dead API never breaks the 15-word hint')"
     ),
     md(
-        "## 11. Conclusions: three generations in one notebook\n\n"
+        "## 12. Conclusions: three generations in one notebook\n\n"
         "1. **Generation 0 - the pinch cop - was unfixable by tuning**: a flat 0% "
         "capture surface across its whole parameter grid. The parity dance (equal "
         "speeds, orthogonal moves, a trap trigger that never fires on the diagonal) is "
@@ -373,7 +400,8 @@ CELLS = [
         "best attacker we could build, and the defender that beats everything except "
         "that attacker. A full belief-based networked self-play match confirms the "
         "transfer: agreed capture verdict on both peers.\n"
-        "6. **Token budget is comfortable**: worst-case series utilization is a small "
+        "6. **The verbal layer is now asymmetric warfare**: our motion judge turns opponents' lies into negative evidence (their lying scores 0.62, worse than their silence at 1.00), while our adaptive deception still poisons naive opponents (2.69) and goes safely vague against sophisticated ones.\n"
+        "7. **Token budget is comfortable**: worst-case series utilization is a small "
         "fraction of the 200k cap, and the template fallback bounds the worst case at "
         "zero tokens."
     ),

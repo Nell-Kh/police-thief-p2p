@@ -36,9 +36,37 @@ _DIRECTION_WORDS = {
 INITIAL_TRUST = 0.5
 _TRUST_MEMORY = 0.7
 
-#: Evidence thresholds, as fractions of the fresh-trail yardstick.
-_CORROBORATION_FRACTION = 0.5
-_CONTRADICTION_FRACTION = 0.25
+#: Cells within this fraction of the snapshot's peak count as the hot core.
+_HOT_FRACTION = 0.8
+
+#: Minimum centroid displacement along the claim before a verdict is made.
+_MOTION_EPSILON = 0.15
+
+#: Unit displacement of each cardinal claim (row, col); north shrinks rows.
+_DIRECTION_DELTAS = {"N": (-1.0, 0.0), "S": (1.0, 0.0), "E": (0.0, 1.0), "W": (0.0, -1.0)}
+
+
+def _hot_centroid(scent: dict[Cell, float]) -> tuple[float, float] | None:
+    """The mass-weighted center of the freshest scent - roughly, the opponent.
+
+    Only cells near the peak participate: the stale tail of the trail would
+    otherwise drag the centroid backward and blur the motion signal.
+    """
+    peak = max(scent.values(), default=0.0)
+    if peak <= 0.0:
+        return None
+    hot = [(cell, value) for cell, value in scent.items() if value >= _HOT_FRACTION * peak]
+    mass = sum(value for _, value in hot)
+    row = sum(cell[0] * value for cell, value in hot) / mass
+    col = sum(cell[1] * value for cell, value in hot) / mass
+    return (row, col)
+
+
+def _mean_direction(directions: frozenset[str]) -> tuple[float, float]:
+    """The average unit vector of the claimed directions."""
+    deltas = [_DIRECTION_DELTAS[d] for d in sorted(directions)]
+    count = len(deltas)
+    return (sum(d[0] for d in deltas) / count, sum(d[1] for d in deltas) / count)
 
 
 @dataclass(frozen=True)
@@ -90,6 +118,7 @@ class TrustModel:
         self._yardstick = fresh_trail
         self._size = board_size
         self._trust = INITIAL_TRUST
+        self._last_centroid: tuple[float, float] | None = None
 
     @property
     def trust(self) -> float:
@@ -97,31 +126,39 @@ class TrustModel:
         return self._trust
 
     def appraise(self, hint: str, scent: dict[Cell, float]) -> Appraisal:
-        """Judge a hint against the opponent's measured scent field.
+        """Judge a hint against the *motion* of the opponent's scent field.
 
         Returns an :class:`Appraisal` whose ``factor`` is ready for
         ``BeliefMap.observe_region`` on the claimed region, and updates the
-        trust coefficient according to the verdict.
+        trust coefficient according to the verdict. The very first appraisal
+        of a game has no baseline and is always uninformative.
         """
         directions = parse_directions(hint)
         region = region_for(directions, self._size)
-        if not region:
+        centroid = _hot_centroid(scent)
+        previous, self._last_centroid = self._last_centroid, centroid
+        if not region or previous is None or centroid is None:
             return Appraisal(directions, region, VERDICT_UNINFORMATIVE, 1.0)
-        claimed = max((scent.get(cell, 0.0) for cell in region), default=0.0)
-        elsewhere = max(
-            (value for cell, value in scent.items() if cell not in region), default=0.0
-        )
-        verdict = self._judge(claimed, elsewhere)
+        moved = (centroid[0] - previous[0], centroid[1] - previous[1])
+        verdict = self._judge(moved, directions)
         self._update_trust(verdict)
         return Appraisal(directions, region, verdict, self._factor(verdict))
 
-    def _judge(self, claimed: float, elsewhere: float) -> str:
-        """Compare measured scent where the hint points against the yardstick."""
-        if claimed >= self._yardstick * _CORROBORATION_FRACTION:
+    def _judge(self, moved: tuple[float, float], directions: frozenset[str]) -> str:
+        """Does the scent's hot centroid actually move where the hint claims?
+
+        A single snapshot cannot verify a *motion* claim - a walk north and
+        its mirrored lie leave the same cells scented (measured in phase 8:
+        the snapshot judge let lies inflate our belief error 0.56 -> 2.69
+        cells). The displacement of the fresh-scent centroid between
+        consecutive turns can: its dot product with the claimed direction is
+        positive for truth, negative for the mirror lie.
+        """
+        claim = _mean_direction(directions)
+        dot = moved[0] * claim[0] + moved[1] * claim[1]
+        if dot > _MOTION_EPSILON:
             return VERDICT_CORROBORATED
-        if claimed < self._yardstick * _CONTRADICTION_FRACTION and (
-            elsewhere >= self._yardstick * _CORROBORATION_FRACTION
-        ):
+        if dot < -_MOTION_EPSILON:
             return VERDICT_CONTRADICTED
         return VERDICT_UNINFORMATIVE
 

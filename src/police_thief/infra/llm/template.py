@@ -8,7 +8,7 @@ fallback behind every paid provider - a game always finishes.
 
 from __future__ import annotations
 
-from .base import HintProvider, HintRequest, clip_words, direction_word
+from .base import STYLE_VAGUE, HintProvider, HintRequest, clip_words, direction_word
 
 #: Real landmarks per supported arena; the empty arena uses generic scenery.
 LANDMARKS: dict[str, tuple[str, ...]] = {
@@ -58,6 +58,15 @@ STAY_PATTERNS: tuple[str, ...] = (
     "Still here by {landmark}, patience is a weapon.",
 )
 
+#: Pure atmosphere - no direction, no movement claim, nothing to falsify.
+VAGUE_PATTERNS: tuple[str, ...] = (
+    "The city hides me well, ask {landmark} if you doubt it.",
+    "Somewhere between {landmark} and nowhere, good luck.",
+    "{landmark} keeps my secrets better than you keep pace.",
+    "Every alley near {landmark} tells a different story about me.",
+    "I could be watching you from {landmark} at this very moment.",
+)
+
 
 class TemplateProvider(HintProvider):
     """Deterministic, offline, free - and therefore always available."""
@@ -72,6 +81,9 @@ class TemplateProvider(HintProvider):
         """
         landmarks = LANDMARKS.get(request.map_area, GENERIC_LANDMARKS)
         landmark = landmarks[request.step % len(landmarks)]
+        if request.style == STYLE_VAGUE:
+            pattern = VAGUE_PATTERNS[request.step % len(VAGUE_PATTERNS)]
+            return clip_words(pattern.format(landmark=landmark), request.max_words)
         claimed = request.claimed_direction()
         if claimed is None:
             pattern = STAY_PATTERNS[request.step % len(STAY_PATTERNS)]

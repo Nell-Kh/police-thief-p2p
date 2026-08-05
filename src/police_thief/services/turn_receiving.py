@@ -50,6 +50,10 @@ def _apply_capture_claim(view: WorldView, message: TurnMessage, contract: GameCo
     if message.capture_claim is None or view.role != "thief":
         return
     view.pending_claim = list(message.capture_claim)
+    claim = (int(message.capture_claim[0]), int(message.capture_claim[1]))
+    view.claim_gaps.append(
+        abs(claim[0] - view.position[0]) + abs(claim[1] - view.position[1])
+    )
     if tuple(message.capture_claim) == view.position:
         view.result = {"type": "capture", "winner": "police", "how": "capture claim"}
         view.note("caught - answering truthfully")

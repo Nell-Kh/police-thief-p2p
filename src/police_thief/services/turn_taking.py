@@ -16,7 +16,9 @@ from ..domain.rules import validate_barrier, validate_move
 from ..domain.sealing import turn_record
 from ..domain.turnmsg import TurnMessage, encode_scent
 from ..infra.llm import HintProvider, HintRequest, TokenLedger
+from ..infra.llm.base import STYLE_DIRECTIONAL
 from ..shared.schema import GameContract
+from .deception import DeceptionPolicy
 from .world_view import WorldView
 
 #: Lie about our direction when the believed opponent is this close (BFS).
@@ -41,6 +43,7 @@ def take_turn(
     provider: HintProvider,
     ledger: TokenLedger,
     book: Logbook,
+    policy: DeceptionPolicy | None = None,
 ) -> TurnMessage:
     """Play this peer's turn locally and return the message to send.
 
@@ -65,7 +68,11 @@ def take_turn(
     view.position = validate_move(view.board, view.position, action.move)
     view.step += 1
     view.my_scent.advance(view.position)
-    intent = choose_intent(view)
+    if policy is not None:
+        _sync_claim_gaps(view, policy)
+        intent, style = policy.choose()
+    else:
+        intent, style = choose_intent(view), STYLE_DIRECTIONAL
     direction = action.move if action.move != "STAY" else None
     tokens_before = ledger.total
     hint = provider.generate(
@@ -76,6 +83,7 @@ def take_turn(
             map_area=contract.world.map_area,
             max_words=contract.world.hint_max_words,
             step=view.step,
+            style=style,
         )
     )
     record = book.append(
@@ -105,6 +113,12 @@ def take_turn(
         claim_response=_answer_claim(view),
         win_claim={"type": "survival"} if view.role == "thief" and survived else None,
     )
+
+
+def _sync_claim_gaps(view: WorldView, policy: DeceptionPolicy) -> None:
+    """Feed claim distances collected by the receive side into the policy."""
+    while view.claim_gaps:
+        policy.observe_claim_gap(view.claim_gaps.pop(0))
 
 
 def concession_message(*, view: WorldView, book: Logbook) -> TurnMessage:

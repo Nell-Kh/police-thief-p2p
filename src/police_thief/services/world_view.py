@@ -33,6 +33,7 @@ class WorldView:
     barriers_used: int = 0
     result: dict[str, Any] | None = None
     pending_claim: list[int] | None = None
+    claim_gaps: list[int] = field(default_factory=list)
     history: list[str] = field(default_factory=list)
 
     @classmethod

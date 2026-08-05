@@ -9,7 +9,14 @@ from __future__ import annotations
 
 import os
 
-from .base import HintProvider, HintRequest, ProviderError, clip_words, direction_word
+from .base import (
+    STYLE_VAGUE,
+    HintProvider,
+    HintRequest,
+    ProviderError,
+    clip_words,
+    direction_word,
+)
 from .ledger import TokenLedger
 
 DEFAULT_MODEL = "claude-3-5-haiku-latest"
@@ -18,6 +25,14 @@ SYSTEM_PROMPT = (
     "You are the {role} in a cops-and-robbers chase set in {area}. "
     "Write ONE taunting hint of at most {max_words} words claiming you moved "
     "{direction}. Mention a real landmark of {area}. Output only the hint text."
+)
+
+VAGUE_SYSTEM_PROMPT = (
+    "You are the {role} in a cops-and-robbers chase set in {area}. "
+    "Write ONE taunting hint of at most {max_words} words that gives away "
+    "NOTHING about where you are or moved - no directions (north/south/east/"
+    "west, up/down, left/right), no movement claims. Pure atmosphere. Mention "
+    "a real landmark of {area}. Output only the hint text."
 )
 
 
@@ -58,12 +73,19 @@ class ClaudeApiProvider(HintProvider):
         """
         client = self._get_client()
         claimed = request.claimed_direction()
-        system = SYSTEM_PROMPT.format(
-            role=request.role,
-            area=request.map_area or "a nameless city",
-            max_words=request.max_words,
-            direction=direction_word(claimed),
-        )
+        if request.style == STYLE_VAGUE or claimed is None:
+            system = VAGUE_SYSTEM_PROMPT.format(
+                role=request.role,
+                area=request.map_area or "a nameless city",
+                max_words=request.max_words,
+            )
+        else:
+            system = SYSTEM_PROMPT.format(
+                role=request.role,
+                area=request.map_area or "a nameless city",
+                max_words=request.max_words,
+                direction=direction_word(claimed),
+            )
         try:
             response = client.messages.create(
                 model=self._model,
