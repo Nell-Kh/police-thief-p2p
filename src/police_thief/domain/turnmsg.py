@@ -85,7 +85,10 @@ class TurnMessage:
                 raise TurnMessageError(f"turn message missing field {name!r}")
         if wire["sender"] not in ROLES:
             raise TurnMessageError(f"unknown sender {wire['sender']!r}")
-        step = int(wire["step"])
+        try:
+            step = int(wire["step"])
+        except (TypeError, ValueError) as error:
+            raise TurnMessageError(f"step must be an integer, got {wire['step']!r}") from error
         if step < 0:
             raise TurnMessageError(f"step must not be negative, got {step}")
         if not str(wire["commit"]):
@@ -123,4 +126,7 @@ def _cell_or_none(value: Any) -> list[int] | None:
         return None
     if not isinstance(value, (list, tuple)) or len(value) != 2:
         raise TurnMessageError(f"cell field must be [row, col], got {value!r}")
-    return [int(value[0]), int(value[1])]
+    try:
+        return [int(value[0]), int(value[1])]
+    except (TypeError, ValueError) as error:
+        raise TurnMessageError(f"cell field must hold integers, got {value!r}") from error

@@ -31,7 +31,7 @@ def config_thief() -> ConfigManager:
 def message(sender: str, **extra) -> TurnMessage:
     """A minimal legal turn message from ``sender``."""
     return TurnMessage(
-        step=extra.pop("step", 5), sender=sender, hint="", smell_grid={},
+        step=extra.pop("step", 1), sender=sender, hint="", smell_grid={},
         commit="a" * 64, **extra,
     )
 
@@ -57,7 +57,7 @@ def test_the_concession_is_sealed_into_the_logbook(config_thief: ConfigManager) 
 def test_the_thief_concedes_exactly_once(config_thief: ConfigManager) -> None:
     runtime = MatchRuntime(config_thief, game_id="c3", sub_game=1, github_commit="x")
     first = runtime.on_turn(message("police", barrier_placed=list(runtime.view.position)))
-    second = runtime.on_turn(message("police", step=6))
+    second = runtime.on_turn(message("police", step=2))
     assert first is not None and second is None
 
 
@@ -81,7 +81,7 @@ def test_a_survival_claim_from_the_police_side_is_ignored(
     """Only the thief may claim survival - and never below the threshold."""
     view = WorldView.open("police", config_police.contract)
     receive_turn(
-        view, message("police", step=40, win_claim={"type": "survival"}),
+        view, message("police", step=1, win_claim={"type": "survival"}),
         config_police.contract,
     )
     assert view.result is None

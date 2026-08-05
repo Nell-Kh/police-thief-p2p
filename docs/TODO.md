@@ -120,6 +120,7 @@ a recorded round with a valid verification stamp.
 | 8.1d | Arms race: EvadeThiefBrain (60/72 vs region cop) + WallPoliceBrain (1900/1900 vs all) | P1 | nell | ✔ |
 | 8.1e | Verbal duel: motion-judge trust model + adaptive DeceptionPolicy + vague hint style | P1 | nell | ✔ |
 | 8.1f | Red team: anti-wall thieves; pillar-orbit hole found and fixed (dance-breaker stone) | P1 | nell | ✔ |
+| 8.1g | Wire hardening: enforcement.py receive-side law + 23-test hostile fuzz battery | P0 | nell | ✔ |
 | 8.2 | Token cost analysis and budget table (guidelines ch. 11) | P2 | nell | ✔ |
 | 8.3 | docs/COMPLIANCE.md — rules #1–#55 + guidelines checklist → module/test map | P1 | nell | ☐ |
 | 8.4 | README.md full academic report (Dec-POMDP, dilemmas, strategies, screenshots) | P0 | nell | ☐ |

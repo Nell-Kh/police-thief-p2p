@@ -250,4 +250,25 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   not to weaken the feature. Every strategy improvement is also a test-suite design
   question.
 
+## Entry 15 — Fuzzing our own wire: the receive-side law (phase 8, part 5)
+- **Context:** the last win-vector: hostile or buggy opponents. In a refereeless league of
+  forked reference repos, garbage on the wire is a scoring event - caught, it voids the
+  game as the sender's violation; uncaught, it crashes us and the watchdog charges US the
+  technical loss.
+- **Prompt (essence):** "Fuzz the real receive path with every hostile input class we can
+  imagine - malformed types, step forgery, scent physics forgery (NaN/inf/over-cap/
+  off-board), barrier quota and role abuse, claim spoofing - and make every one of them
+  land as the opponent's technical loss, never as our exception."
+- **Output:** ``services/enforcement.py`` (protocol_violation: step continuity, scent
+  physics, barrier law, claim permissions - run before any inference), type-safe
+  ``TurnMessage.from_wire``, opponent step/barrier counters in WorldView, a 23-test fuzz
+  battery. 558 tests, 97.7%.
+- **Lesson:** the nastiest holes were quiet, not loud. A thief could open with ``step=35``
+  and an instant survival claim - nothing crashed, we simply lost; step monotonicity is
+  what makes every other step-based check trustworthy. A single NaN scent value would
+  have silently dissolved the whole belief map (NaN propagates through every multiply).
+  And the fix immediately broke six of our own tests that sent step=5 out of nowhere -
+  the enforcement layer could not tell our shortcuts from an attack, which is exactly
+  the point.
+
 *(Entries continue as development proceeds.)*

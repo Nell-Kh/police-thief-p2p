@@ -11,11 +11,22 @@ from __future__ import annotations
 
 from ..domain.turnmsg import TurnMessage, decode_scent
 from ..shared.schema import GameContract
+from .enforcement import protocol_violation
 from .world_view import WorldView
 
 
 def receive_turn(view: WorldView, message: TurnMessage, contract: GameContract) -> None:
-    """Fold one opponent turn into this peer's world view."""
+    """Fold one opponent turn into this peer's world view.
+
+    The law comes first: a message that breaks the signed physics ends the
+    game as a technical loss before a single belief cell is touched.
+    """
+    violation = protocol_violation(view, message, contract)
+    if violation is not None:
+        view.result = {"type": "technical_loss", "violator": message.sender, "how": violation}
+        view.note(f"protocol violation by {message.sender}: {violation}")
+        return
+    view.opponent_step = max(view.opponent_step, message.step)
     scent = decode_scent(message.smell_grid)
     view.belief.diffuse()
     view.belief.observe_scent(scent)
@@ -36,6 +47,7 @@ def _apply_barrier(view: WorldView, message: TurnMessage) -> None:
     cell = (message.barrier_placed[0], message.barrier_placed[1])
     if view.board.is_free(cell):
         view.board.place_barrier(cell)
+        view.opponent_barriers += 1
         view.note(f"opponent declared a barrier at {cell}")
         if cell == view.position and view.role == "thief":
             view.result = {"type": "capture", "winner": "police", "how": "trapping barrier"}
