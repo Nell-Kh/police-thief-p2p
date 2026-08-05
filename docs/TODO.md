@@ -123,7 +123,7 @@ a recorded round with a valid verification stamp.
 | 8.1g | Wire hardening: enforcement.py receive-side law + 23-test hostile fuzz battery | P0 | nell | ✔ |
 | 8.1h | HybridPoliceBrain (opt-in speed profile) + verified-claim belief pin for the thief | P2 | nell | ✔ |
 | 8.2 | Token cost analysis and budget table (guidelines ch. 11) | P2 | nell | ✔ |
-| 8.3 | docs/COMPLIANCE.md — rules #1–#55 + guidelines checklist → module/test map | P1 | nell | ☐ |
+| 8.3 | docs/COMPLIANCE.md — rules #1–#55 + guidelines checklist → module/test map | P1 | nell | ✔ |
 | 8.4 | README.md full academic report (Dec-POMDP, dilemmas, strategies, screenshots) | P0 | nell | ☐ |
 | 8.5 | Verification pass: ruff clean, coverage ≥85%, 150-line audit, checklist §11.5 | P0 | nell | ☐ |
 | 8.6 | Split into police-agent + thief-agent repos, cross-links, tag `v1.0-submission` | P0 | nell | ☐ |
