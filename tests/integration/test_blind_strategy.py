@@ -41,8 +41,8 @@ def test_the_configured_brains_load_from_the_toml(config_dir: Path) -> None:
     """Each role's own TOML selects its competition brain."""
     police = configured_brain(ConfigManager.load("police", config_dir), "police")
     thief = configured_brain(ConfigManager.load("thief", config_dir), "thief")
-    assert type(police).__name__ == "RegionPoliceBrain"
-    assert type(thief).__name__ == "EnhancedThiefBrain"
+    assert type(police).__name__ == "WallPoliceBrain"
+    assert type(thief).__name__ == "EvadeThiefBrain"
 
 
 def test_an_absent_strategy_section_falls_back_to_the_default(

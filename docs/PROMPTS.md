@@ -185,4 +185,25 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   won - fixed with a sealed, auditable concession message. A strategy improvement was also a
   protocol test.
 
+## Entry 12 — The arms race: evader vs wall (phase 8, part 2)
+- **Context:** the league grade rides on winning, so a 100%-vs-our-own-thief cop is not
+  evidence of strength - it may be evidence of a weak thief. Both sides were forced to
+  evolve against each other until neither could improve.
+- **Prompt (essence):** "Make the thief beat the region cop, then make the cop beat that
+  thief. No strict priority orderings without testing blends; every claim validated on the
+  72-pair grid, finals on all 1900 pairs; pin the outcomes as regression tests."
+- **Output:** `brain/evade.py` (EvadeThiefBrain - weighted blend of worst-case region,
+  distance, openness, mobility: 60/72 survivals vs the region cop where the enhanced thief
+  had 0), `brain/wall.py` (WallPoliceBrain - opening center wall with a guarded door, then
+  the region hunt: 1900/1900 vs every archetype, max 29/35 steps, max 8/14 barriers), both
+  wired as the configured competition brains; notebook sections 7-9; 524 tests, 97.8%.
+- **Lesson:** four attempts died before the wall cop worked, and each death taught the
+  design. Lexicographic thief scoring loses (blends win - defense is a trade-off, not a
+  hierarchy). A minimax cop that assumes the thief's best reply never builds a wall (every
+  stone looks futile one ply deep) and reverts to the parity dance. An anti-repetition
+  trigger fires too rarely inside 35 steps. What finally won was changing the *board*, not
+  the *chase*: the opening wall needs no position knowledge at all, which also makes it the
+  one strategy immune to belief error - confirmed by an agreed capture verdict in full
+  networked self-play.
+
 *(Entries continue as development proceeds.)*

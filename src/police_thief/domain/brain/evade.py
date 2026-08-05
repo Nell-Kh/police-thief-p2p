@@ -1,0 +1,86 @@
+"""The open-field thief: survive by keeping options, distance and open sky.
+
+The other half of the phase-8 arms race. The enhanced thief's lexicographic
+scoring loses to the region cop in ~9 steps; every strict priority order
+tried in the notebook loses too. What works is a *blend*: weigh together the
+worst-case safe region after the cop's best reply (max-min, one ply), the
+true-path distance from the believed cop, the cell's openness (distance from
+the nearest edge - walls are where strangulation begins), and its mobility.
+Against the region cop this thief survives 60/72 starts (mean 30 of 35
+steps) where the enhanced thief survived none; against pursuit-style cops
+it still survives everything. Only the wall cop beats it - which is why the
+wall cop exists.
+"""
+
+from __future__ import annotations
+
+from ...constants import MOVE_STAY
+from ..board import Board, Cell
+from ..rules import barrier_placements, destination, legal_moves
+from .base import BrainView
+from .blind import BlindThiefBrain
+from .pathfind import distance_field
+from .region import _reach, region_size
+
+#: Weight of the worst-case own safe region (max-min over cop replies).
+W_REGION = 1
+
+#: Weight of the true-path distance from the believed cop.
+W_DISTANCE = 2
+
+#: Weight of openness - distance from the nearest board edge.
+W_OPENNESS = 3
+
+#: Weight of mobility - the number of free neighbouring cells.
+W_MOBILITY = 1
+
+#: Distance beyond this earns nothing more - being "far" saturates.
+DISTANCE_CAP = 8
+
+
+def openness(board: Board, cell: Cell) -> int:
+    """Distance from the nearest edge; the center of a 7x7 board scores 3."""
+    row, col = cell
+    return min(row, col, board.size - 1 - row, board.size - 1 - col)
+
+
+def worst_case_region(board: Board, cell: Cell, cop: Cell) -> int:
+    """Our safe region from ``cell`` after the cop's most damaging reply.
+
+    One ply of pessimism: the cop may step anywhere legal or drop any legal
+    barrier. Pricing the *reply* rather than the present is what lets the
+    thief walk out of traps one turn before they close.
+    """
+    worst = region_size(board, cop, cell)
+    for move in legal_moves(board, cop):
+        worst = min(worst, region_size(board, destination(cop, move), cell))
+    for stone in barrier_placements(board, cop):
+        if stone in (cell, cop):
+            continue
+        trial = Board(board.size, set(board.barriers) | {stone})
+        worst = min(worst, region_size(trial, cop, cell))
+    return worst
+
+
+class EvadeThiefBrain(BlindThiefBrain):
+    """Maximize the weighted blend of region, distance, openness, mobility."""
+
+    def _pick_move(self, view: BrainView) -> str:
+        """The best-scoring legal move; never step onto the believed cop."""
+        best_key: tuple[int, str] | None = None
+        best_move = MOVE_STAY
+        cop_field = distance_field(view.board, view.target)
+        for move in legal_moves(view.board, view.position):
+            cell = destination(view.position, move)
+            if cell == view.target:
+                continue
+            score = (
+                W_REGION * worst_case_region(view.board, cell, view.target)
+                + W_DISTANCE * min(_reach(cop_field, cell), DISTANCE_CAP)
+                + W_OPENNESS * openness(view.board, cell)
+                + W_MOBILITY * len(view.board.free_neighbours(cell))
+            )
+            key = (score, str(move))
+            if best_key is None or key > best_key:
+                best_key, best_move = key, move
+        return best_move

@@ -17,9 +17,9 @@ opponent_url = "http://127.0.0.1:8802/mcp"     # the only thing I know about the
 turn_timeout_seconds = 180
 
 [strategy]
-# The competition brain: region strangulation (see notebooks/analysis.ipynb).
-# Converts 1900/1900 start pairs in a mean of 7.8 steps with ~2 barriers.
-police_class = "police_thief.domain.brain.region:RegionPoliceBrain"
+# The competition brain: opening wall + region hunt (see notebooks/analysis.ipynb).
+# Beats every thief archetype 1900/1900, max 29 of 35 steps, max 8 of 14 barriers.
+police_class = "police_thief.domain.brain.wall:WallPoliceBrain"
 
 [trash_talk]
 # How the banter/deception text is produced. The MOVE is always pure Python.
