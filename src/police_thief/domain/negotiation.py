@@ -1,11 +1,13 @@
-"""Pre-game negotiation: the terms both sides must lock before move one.
+"""Pre-game negotiation in the league's interoperable handshake shape.
 
-The terms bundle everything the rulebook requires agreed and cryptographically
-locked before a series: the contract digest (byte-identical ``game.json``), the
-scent-model lock (formula + numeric example, ch. 4.5), the declared count of
-counted games already played (the diversity-incentive declaration - lying here
-disqualifies), the team identity, and the Step-0 commitment hash that seals the
-hardware declaration and the exact code commit being played.
+The signed object is the flat 14-key terms set (the reference's own
+extraction, pinned by the class interop kit); everything else - role,
+sub-game index, locked-model hashes, the games-count declaration, the Step-0
+commitment - rides BESIDE the terms, never inside them, because adding a key
+to the signed set breaks the signature. Refusal follows the kit's promoted
+truth tables: a value that disagrees refuses; an omission never does, in
+either direction - the unmodified reference peer declares nothing, and
+refusing silence is a self-inflicted forfeit.
 """
 
 from __future__ import annotations
@@ -13,12 +15,15 @@ from __future__ import annotations
 from typing import Any
 
 from ..shared.config import ConfigManager
-from ..shared.schema import PheromoneConfig
-from .scent import lock_sha256
+from ..shared.interop import negotiate_extras, sign_terms, terms_from_contract
+from .crypto import new_nonce
+
+#: The locked-model families we compare under the both-declare-or-tolerate rule.
+MODEL_FAMILIES = ("scent_model_sha256", "wire_shape_sha256", "info_mode_sha256")
 
 
 class TermsRejectedError(RuntimeError):
-    """Raised when the opponent's terms do not match ours."""
+    """Raised when the opponent's greeting must be refused."""
 
 
 def build_terms(
@@ -29,57 +34,76 @@ def build_terms(
     sub_game: int,
     step0_commit: str,
 ) -> dict[str, Any]:
-    """The terms message this peer offers at negotiation."""
-    return {
-        "role": config.role,
-        "peer_id": peer_id,
-        "games_played": int(games_played),
-        "sub_game": int(sub_game),
-        "config_sha256": config.config_sha256,
-        "scent_lock": lock_sha256(config.contract.pheromones),
+    """This peer's negotiation greeting: signed terms plus declarations."""
+    terms = terms_from_contract(config.contract)
+    nonce = new_nonce()
+    greeting: dict[str, Any] = {
+        "terms": terms,
+        "nonce": nonce,
+        "signature": sign_terms(terms, nonce),
+        "group_id": peer_id,
+        "counted_games_played": int(games_played),
         "step0_commit": step0_commit,
     }
+    greeting.update(negotiate_extras(config.role, sub_game))
+    return greeting
 
 
 def validate_terms(
     theirs: dict[str, Any],
     *,
-    our_config_sha256: str,
-    our_scent_lock: str,
+    our_terms: dict[str, Any],
+    our_extras: dict[str, Any],
     expect_role: str,
 ) -> dict[str, Any]:
-    """Accept or refuse an opponent's terms.
+    """Accept or refuse an opponent's greeting.
 
-    Refusal conditions: wrong role, a contract digest that is not
-    byte-identical to ours, or a different scent-model lock - different
-    physics means the race must not start.
+    Refusals, each naming what disagreed: terms not value-equal to ours, a
+    signature that does not verify over the received terms, a locked-model
+    family BOTH sides declare with different hashes, a pairing declaration
+    naming the wrong sub-game or our own role. Everything absent is silence,
+    and silence never refuses.
 
     Raises:
         TermsRejectedError: naming exactly what disagreed.
     """
-    if not isinstance(theirs, dict):
-        raise TermsRejectedError("terms must be an object")
-    if theirs.get("role") != expect_role:
-        raise TermsRejectedError(
-            f"expected terms from {expect_role!r}, got {theirs.get('role')!r}"
-        )
-    their_digest = str(theirs.get("config_sha256", ""))
-    if their_digest != our_config_sha256:
-        raise TermsRejectedError(
-            f"contract mismatch: ours {our_config_sha256[:12]}, theirs {their_digest[:12]}"
-        )
-    their_lock = str(theirs.get("scent_lock", ""))
-    if their_lock != our_scent_lock:
-        raise TermsRejectedError(
-            f"scent-model mismatch: ours {our_scent_lock[:12]}, theirs {their_lock[:12]}"
-        )
-    if int(theirs.get("games_played", -1)) < 0:
-        raise TermsRejectedError("games_played declaration missing or negative")
-    if not str(theirs.get("step0_commit", "")):
-        raise TermsRejectedError("step0 commitment missing")
+    if not isinstance(theirs, dict) or not isinstance(theirs.get("terms"), dict):
+        raise TermsRejectedError("greeting must carry a terms object")
+    if theirs["terms"] != our_terms:
+        differing = [
+            key
+            for key in set(our_terms) | set(theirs["terms"])
+            if our_terms.get(key) != theirs["terms"].get(key)
+        ]
+        raise TermsRejectedError(f"terms mismatch on {sorted(differing)}")
+    nonce, signature = str(theirs.get("nonce", "")), str(theirs.get("signature", ""))
+    if not nonce or sign_terms(theirs["terms"], nonce) != signature:
+        raise TermsRejectedError("terms signature does not verify")
+    _check_models(theirs, our_extras)
+    _check_pairing(theirs, our_extras, expect_role)
     return theirs
 
 
-def scent_lock_for(pheromones: PheromoneConfig) -> str:
-    """The scent-model lock for a given pheromone configuration."""
-    return lock_sha256(pheromones)
+def _check_models(theirs: dict[str, Any], ours: dict[str, Any]) -> None:
+    """Refuse only when BOTH peers declare a family and the hashes differ."""
+    for family in MODEL_FAMILIES:
+        their_hash, our_hash = theirs.get(family), ours.get(family)
+        if their_hash is not None and our_hash is not None and their_hash != our_hash:
+            raise TermsRejectedError(f"{family} mismatch: locked models differ")
+
+
+def _check_pairing(theirs: dict[str, Any], ours: dict[str, Any], expect_role: str) -> None:
+    """The kit's pairing truth table: wrong index or same side refuses.
+
+    A value that cannot be compared is treated as silence - refusing over a
+    peer's type or spelling choice turns a cosmetic difference into a loss.
+    """
+    their_game = theirs.get("sub_game_number")
+    if isinstance(their_game, int) and their_game != ours.get("sub_game_number"):
+        raise TermsRejectedError(
+            f"sub-game mismatch: we are playing {ours.get('sub_game_number')}, "
+            f"they declare {their_game}"
+        )
+    their_role = theirs.get("role")
+    if isinstance(their_role, str) and their_role not in ("", expect_role):
+        raise TermsRejectedError(f"role clash: both sides claim {their_role!r}")

@@ -15,12 +15,12 @@ from police_thief.shared.config import ConfigManager
 @pytest.fixture
 def opponent(config_dir: Path) -> InboundHandler:
     """A thief peer holding the same contract as us."""
-    from police_thief.domain.negotiation import scent_lock_for
+    from police_thief.shared.interop import negotiate_extras, terms_from_contract
 
     thief = ConfigManager.load("thief", config_dir)
     return InboundHandler(
-        config_sha256=thief.config_sha256,
-        scent_lock=scent_lock_for(thief.contract.pheromones),
+        our_terms=terms_from_contract(thief.contract),
+        our_extras=negotiate_extras(thief.role, 1),
         expect_role="police",
     )
 
@@ -60,9 +60,9 @@ def test_starting_a_match_shakes_hands_and_creates_the_board(
 def test_a_contract_mismatch_stops_the_match_before_the_first_move(
     config_dir: Path,
 ) -> None:
-    stranger = InboundHandler(config_sha256="f" * 64, scent_lock="e" * 64, expect_role="police")
+    stranger = InboundHandler(our_terms={"board_size": 9}, our_extras={}, expect_role="police")
     police = Orchestrator(ConfigManager.load("police", config_dir), LoopbackTransport(stranger))
-    with pytest.raises(HandshakeRejectedError, match="contract mismatch"):
+    with pytest.raises(HandshakeRejectedError, match="terms mismatch"):
         police.start_match(peer_id="team-a", games_played=0)
 
 
@@ -127,12 +127,12 @@ def test_the_peer_expects_messages_from_its_opponent_only(police: Orchestrator) 
 
 def test_both_peers_can_be_orchestrated_from_the_same_contract(config_dir: Path) -> None:
     """Symmetry: the thief runs exactly the same machinery as the cop."""
-    from police_thief.domain.negotiation import scent_lock_for
+    from police_thief.shared.interop import negotiate_extras, terms_from_contract
 
     police_config = ConfigManager.load("police", config_dir)
     police_handler = InboundHandler(
-        config_sha256=police_config.config_sha256,
-        scent_lock=scent_lock_for(police_config.contract.pheromones),
+        our_terms=terms_from_contract(police_config.contract),
+        our_extras=negotiate_extras(police_config.role, 1),
         expect_role="thief",
     )
     thief = Orchestrator(

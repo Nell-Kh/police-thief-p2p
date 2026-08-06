@@ -1,4 +1,4 @@
-"""Tests for the pre-game terms exchange and its locks."""
+"""Tests for the interoperable handshake - signed terms, locks, pairing."""
 
 from __future__ import annotations
 
@@ -12,6 +12,12 @@ from police_thief.domain.negotiation import (
     validate_terms,
 )
 from police_thief.shared.config import ConfigManager
+from police_thief.shared.interop import (
+    SCENT_MODEL_SHA256,
+    negotiate_extras,
+    sign_terms,
+    terms_from_contract,
+)
 
 
 @pytest.fixture
@@ -24,7 +30,7 @@ def thief(config_dir: Path) -> ConfigManager:
     return ConfigManager.load("thief", config_dir)
 
 
-def terms_of(config: ConfigManager, **overrides):
+def greeting_of(config: ConfigManager, **overrides):
     base = build_terms(
         config, peer_id="team-x", games_played=2, sub_game=1, step0_commit="c" * 64
     )
@@ -32,84 +38,83 @@ def terms_of(config: ConfigManager, **overrides):
     return base
 
 
-def test_terms_carry_every_binding_lock(police: ConfigManager) -> None:
-    terms = terms_of(police)
-    assert terms["config_sha256"] == police.config_sha256
-    assert len(terms["scent_lock"]) == 64
-    assert terms["games_played"] == 2
-    assert terms["step0_commit"] == "c" * 64
-
-
-def test_matching_terms_are_accepted(police: ConfigManager, thief: ConfigManager) -> None:
-    """Two peers with byte-identical contracts accept each other."""
-    accepted = validate_terms(
-        terms_of(thief),
-        our_config_sha256=police.config_sha256,
-        our_scent_lock=terms_of(police)["scent_lock"],
-        expect_role="thief",
+def check(theirs, ours_config: ConfigManager, expect_role: str = "thief"):
+    return validate_terms(
+        theirs,
+        our_terms=terms_from_contract(ours_config.contract),
+        our_extras=negotiate_extras(ours_config.role, 1),
+        expect_role=expect_role,
     )
-    assert accepted["peer_id"] == "team-x"
 
 
-def test_a_contract_mismatch_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
-    with pytest.raises(TermsRejectedError, match="contract mismatch"):
-        validate_terms(
-            terms_of(thief, config_sha256="f" * 64),
-            our_config_sha256=police.config_sha256,
-            our_scent_lock=terms_of(police)["scent_lock"],
-            expect_role="thief",
-        )
+def test_the_greeting_carries_the_interop_shape(police: ConfigManager) -> None:
+    greeting = greeting_of(police)
+    assert set(greeting["terms"].keys()) == {
+        "board_size", "smell_grid_size", "decay_per_step", "emit_intensity",
+        "min_center_intensity", "max_steps", "barriers_max", "setting",
+        "hint_max_words", "axis_origin_corner", "axis_start_index",
+        "thief_start", "cop_start", "num_games",
+    }
+    assert greeting["signature"] == sign_terms(greeting["terms"], greeting["nonce"])
+    assert greeting["scent_model_sha256"] == SCENT_MODEL_SHA256
+    assert greeting["role"] == "police"
+    assert greeting["sub_game_number"] == 1
+    assert greeting["counted_games_played"] == 2
+
+
+def test_matching_greetings_are_accepted(police: ConfigManager, thief: ConfigManager) -> None:
+    """Two peers loading byte-identical game.json accept each other."""
+    accepted = check(greeting_of(thief), police)
+    assert accepted["terms"] == terms_from_contract(police.contract)
+
+
+def test_a_terms_value_mismatch_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
+    greeting = greeting_of(thief)
+    greeting["terms"] = dict(greeting["terms"], board_size=9)
+    greeting["signature"] = sign_terms(greeting["terms"], greeting["nonce"])
+    with pytest.raises(TermsRejectedError, match="board_size"):
+        check(greeting, police)
+
+
+def test_a_bad_signature_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
+    greeting = greeting_of(thief, signature="f" * 64)
+    with pytest.raises(TermsRejectedError, match="signature"):
+        check(greeting, police)
 
 
 def test_a_scent_model_mismatch_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
-    """Different decay physics means the race must not start (ch. 4.5 lock)."""
-    with pytest.raises(TermsRejectedError, match="scent-model mismatch"):
-        validate_terms(
-            terms_of(thief, scent_lock="e" * 64),
-            our_config_sha256=police.config_sha256,
-            our_scent_lock=terms_of(police)["scent_lock"],
-            expect_role="thief",
-        )
+    greeting = greeting_of(thief, scent_model_sha256="f" * 64)
+    with pytest.raises(TermsRejectedError, match="scent_model"):
+        check(greeting, police)
 
 
-def test_the_wrong_role_is_refused(police: ConfigManager) -> None:
-    with pytest.raises(TermsRejectedError, match="expected terms from 'thief'"):
-        validate_terms(
-            terms_of(police),
-            our_config_sha256=police.config_sha256,
-            our_scent_lock=terms_of(police)["scent_lock"],
-            expect_role="thief",
-        )
-
-
-def test_a_missing_game_count_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
-    """The diversity-incentive declaration is mandatory at game start."""
-    with pytest.raises(TermsRejectedError, match="games_played"):
-        validate_terms(
-            terms_of(thief, games_played=-1),
-            our_config_sha256=police.config_sha256,
-            our_scent_lock=terms_of(police)["scent_lock"],
-            expect_role="thief",
-        )
-
-
-def test_a_missing_step0_commitment_is_refused(
+def test_an_omitted_model_family_is_never_refused(
     police: ConfigManager, thief: ConfigManager
 ) -> None:
-    with pytest.raises(TermsRejectedError, match="step0 commitment"):
-        validate_terms(
-            terms_of(thief, step0_commit=""),
-            our_config_sha256=police.config_sha256,
-            our_scent_lock=terms_of(police)["scent_lock"],
-            expect_role="thief",
-        )
+    """The unmodified reference peer declares nothing; silence must play."""
+    greeting = greeting_of(thief)
+    for family in ("scent_model_sha256", "wire_shape_sha256", "info_mode_sha256"):
+        greeting.pop(family, None)
+    assert check(greeting, police)
 
 
-def test_non_object_terms_are_refused(police: ConfigManager) -> None:
-    with pytest.raises(TermsRejectedError, match="must be an object"):
-        validate_terms(
-            ["nope"],  # type: ignore[arg-type]
-            our_config_sha256=police.config_sha256,
-            our_scent_lock="x",
-            expect_role="thief",
-        )
+def test_a_sub_game_mismatch_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
+    with pytest.raises(TermsRejectedError, match="sub-game"):
+        check(greeting_of(thief, sub_game_number=4), police)
+
+
+def test_a_role_clash_is_refused(police: ConfigManager, thief: ConfigManager) -> None:
+    with pytest.raises(TermsRejectedError, match="role clash"):
+        check(greeting_of(thief, role="police"), police)
+
+
+def test_uncomparable_pairing_values_are_silence(
+    police: ConfigManager, thief: ConfigManager
+) -> None:
+    """A wrong-typed declaration is treated as silence, not refused."""
+    assert check(greeting_of(thief, sub_game_number="three", role=17), police)
+
+
+def test_non_object_greetings_are_refused(police: ConfigManager) -> None:
+    with pytest.raises(TermsRejectedError, match="terms object"):
+        check(["not", "a", "greeting"], police)

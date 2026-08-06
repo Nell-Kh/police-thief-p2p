@@ -291,4 +291,24 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   against reference-style thieves) is opt-in for opponents that have already shown a
   weak thief.
 
+## Entry 17 — The league speaks: conforming to the class interop kit (phase 8, part 7)
+- **Context:** classmates (imreeyal + anrbj666) published copthief-league-protocol - test
+  vectors for every byte two implementations must agree on, plus a sparring peer. Their
+  one-liner is the whole stake: two legal serializers that differ at all fail each other's
+  audit, and BOTH score zero. The kit is also the de-facto handshake standard of every
+  team we could play counted games against.
+- **Prompt (essence):** "Vendor the vectors (MIT), run every one through OUR code, fix
+  every byte that differs, and adopt the promoted handshake shape - flat signed terms,
+  pairing declaration, locked-model hashes with the omission-never-refuses rule."
+- **Output:** `shared/interop.py` (terms_from_contract, sign_terms, derive_game_ids, the
+  three registered model declarations), negotiation + inbound rewritten to the greeting
+  shape, `tests/interop/test_kit_vectors.py` (11 conformance tests, byte-exact),
+  min_center_intensity plumbed through the contract. 580 tests, 97.9%.
+- **Lesson:** the vectors caught a real bug within minutes: our scent kernel was COMPUTED
+  (`0.9 * 42 / 90` = `0.42000000000000004`) instead of looked up verbatim (`0.42`) - one
+  IEEE bit that would have put different bytes on the wire than the printed matrix. And
+  our scent lock was exactly the "ad-hoc dict" the kit warns about: the same model as
+  anrbj666's, guaranteed to refuse them for no reason. Interop is not a protocol problem,
+  it is a bytes problem - and bytes are only provable with someone else's fixtures.
+
 *(Entries continue as development proceeds.)*

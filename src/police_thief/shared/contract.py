@@ -77,6 +77,7 @@ def _pheromones(contract: dict[str, Any]) -> PheromoneConfig:
         center_intensity=float(_get(section, "pheromone_center_intensity", name)),
         decay=float(_get(section, "pheromone_decay", name)),
         grid_size=int(_get(section, "pheromone_grid_size", name)),
+        min_center_intensity=float(section.get("pheromone_min_center_intensity", 0.5)),
     )
 
 

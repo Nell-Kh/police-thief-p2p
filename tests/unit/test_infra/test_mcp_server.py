@@ -15,7 +15,7 @@ SCENT = "d" * 64
 
 @pytest.fixture
 def handler() -> InboundHandler:
-    return InboundHandler(config_sha256=DIGEST, scent_lock=SCENT, expect_role="thief")
+    return InboundHandler(our_terms={"board_size": 7}, our_extras={}, expect_role="thief")
 
 
 def _tools(server) -> dict:

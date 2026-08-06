@@ -23,10 +23,12 @@ class HandshakeRejectedError(RuntimeError):
 class InboundHandler:
     """Receives, validates and queues the opponent's calls."""
 
-    def __init__(self, config_sha256: str, scent_lock: str, expect_role: str) -> None:
-        """Bind the handler to our locks and the opponent's role."""
-        self._config_sha256 = config_sha256
-        self._scent_lock = scent_lock
+    def __init__(
+        self, our_terms: dict[str, Any], our_extras: dict[str, Any], expect_role: str
+    ) -> None:
+        """Bind the handler to our signed terms, declarations and the rival role."""
+        self._our_terms = our_terms
+        self._our_extras = our_extras
         self._expect_role = expect_role
         self.opponent_terms: dict[str, Any] | None = None
         self.turns: list[TurnMessage] = []
@@ -40,10 +42,15 @@ class InboundHandler:
 
     @property
     def opponent_games_played(self) -> int | None:
-        """The opponent's declared counted-game total, once negotiated."""
+        """The opponent's declared counted-game total, once negotiated.
+
+        None both before negotiation and when the peer declared nothing -
+        per the kit, an omitted declaration is silence, never a refusal.
+        """
         if self.opponent_terms is None:
             return None
-        return int(self.opponent_terms.get("games_played", 0))
+        declared = self.opponent_terms.get("counted_games_played")
+        return int(declared) if isinstance(declared, int) else None
 
     def negotiate(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Accept the opponent's terms, refusing any lock mismatch.
@@ -55,14 +62,14 @@ class InboundHandler:
         try:
             terms = validate_terms(
                 payload,
-                our_config_sha256=self._config_sha256,
-                our_scent_lock=self._scent_lock,
+                our_terms=self._our_terms,
+                our_extras=self._our_extras,
                 expect_role=self._expect_role,
             )
         except TermsRejectedError as error:
             raise HandshakeRejectedError(str(error)) from error
         self.opponent_terms = terms
-        return {"accepted": True, "config_sha256": self._config_sha256}
+        return {"accepted": True, "terms": self._our_terms, **self._our_extras}
 
     def receive_turn(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Accept one turn message; receiving it makes it our turn.

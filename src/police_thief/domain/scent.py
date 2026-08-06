@@ -22,18 +22,22 @@ from ..shared.config_io import sha256_of
 from ..shared.schema import PheromoneConfig
 from .board import Cell
 
-#: Radial intensity ratios of Figure 4, keyed by the sorted absolute offsets
-#: from the emission centre, expressed in ninetieths so that a 0.9 centre
-#: reproduces the printed matrix digit for digit:
-#: 0.90 / 0.62 / 0.42 / 0.20 / 0.14 / 0.04.
-EMISSION_RATIOS: dict[tuple[int, int], int] = {
-    (0, 0): 90,
-    (0, 1): 62,
-    (1, 1): 42,
-    (0, 2): 20,
-    (1, 2): 14,
-    (2, 2): 4,
+#: Figure 4's printed intensities, VERBATIM, keyed by the sorted absolute
+#: offsets from the emission centre. A lookup, never arithmetic: computing
+#: these (e.g. ``0.9 * 42 / 90``) lands on ``0.42000000000000004`` - one IEEE
+#: bit away from the printed ``0.42`` - and the league's interop kit pins the
+#: printed doubles byte-exactly (vectors/scent_book_v3.json).
+EMISSION_KERNEL: dict[tuple[int, int], float] = {
+    (0, 0): 0.9,
+    (0, 1): 0.62,
+    (1, 1): 0.42,
+    (0, 2): 0.2,
+    (1, 2): 0.14,
+    (2, 2): 0.04,
 }
+
+#: The centre intensity the verbatim kernel is printed for (App. F: fixed).
+KERNEL_CENTER = 0.9
 
 #: The formula string locked before a series, as the two teams agree it.
 FORMULA = "tau_ij(t+1) = max(0, (1 - rho) * tau_ij(t) + delta_tau_ij)"
@@ -50,8 +54,10 @@ def emission_delta(config: PheromoneConfig, source: Cell, cell: Cell) -> float:
     d_col = abs(cell[1] - source[1])
     if d_row > reach or d_col > reach:
         return 0.0
-    ratio = EMISSION_RATIOS[(min(d_row, d_col), max(d_row, d_col))]
-    return config.center_intensity * ratio / 90
+    value = EMISSION_KERNEL[(min(d_row, d_col), max(d_row, d_col))]
+    if config.center_intensity != KERNEL_CENTER:  # scaled only off the fixed default
+        value = value * config.center_intensity / KERNEL_CENTER
+    return value
 
 
 class ScentField:
@@ -108,26 +114,17 @@ class ScentField:
 
 
 def lock_payload(config: PheromoneConfig) -> dict:
-    """The canonical description of the emission-decay model, ready to lock.
+    """The locked scent-model document - the kit-registered doc, verbatim.
 
-    Contains the formula, every quantitative parameter, the full radial matrix,
-    and the concrete numeric example the rulebook requires alongside it: a
-    centre cell takes tau = 0.9, and after one decay turn at rate rho the
-    result is 0.9 * (1 - rho).
+    Registered as ``multiplicative_book_v1`` in the class interop kit; two
+    teams running the same model from the same book must hash the same doc,
+    which only happens when the doc's field set is pinned. Our engine's
+    conformance to it is proven against the kit's fixtures in
+    ``tests/interop/test_kit_vectors.py``.
     """
-    return {
-        "formula": FORMULA,
-        "rho": config.decay,
-        "center_intensity": config.center_intensity,
-        "field_size": config.grid_size,
-        "emission_ratios_ninetieths": {
-            f"{low},{high}": value for (low, high), value in sorted(EMISSION_RATIOS.items())
-        },
-        "numeric_example": {
-            "center_tau": config.center_intensity,
-            "after_one_decay_turn": round((1.0 - config.decay) * config.center_intensity, 10),
-        },
-    }
+    from ..shared.interop import SCENT_MODEL_DOC
+
+    return SCENT_MODEL_DOC
 
 
 def lock_sha256(config: PheromoneConfig) -> str:

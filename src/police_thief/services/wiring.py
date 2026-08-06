@@ -10,11 +10,11 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from ..domain.negotiation import scent_lock_for
 from ..infra.mcp_client import PeerClient
 from ..infra.transport import Transport
 from ..sdk import SimulationSdk
 from ..shared.config import ConfigManager
+from ..shared.interop import negotiate_extras, terms_from_contract
 from .inbound import InboundHandler
 from .phase_machine import GamePhaseMachine
 from .watchdog import Watchdog
@@ -55,8 +55,8 @@ def build_subsystems(
         phases=GamePhaseMachine(),
         client=PeerClient(transport, contract.network, contract.rate_limiter),
         inbound=InboundHandler(
-            config_sha256=config.config_sha256,
-            scent_lock=scent_lock_for(contract.pheromones),
+            our_terms=terms_from_contract(contract),
+            our_extras=negotiate_extras(config.role, sub_game_number=1),
             expect_role=sdk.opponent_role(),
         ),
         watchdog=Watchdog(

@@ -90,6 +90,7 @@ class PheromoneConfig:
     center_intensity: float
     decay: float
     grid_size: int
+    min_center_intensity: float
 
 
 @dataclass(frozen=True)

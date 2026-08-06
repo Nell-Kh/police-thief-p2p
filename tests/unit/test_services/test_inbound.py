@@ -5,19 +5,29 @@ from __future__ import annotations
 import pytest
 
 from police_thief.services.inbound import HandshakeRejectedError, InboundHandler
+from police_thief.shared.interop import sign_terms
 
-DIGEST = "c" * 64
-SCENT = "d" * 64
+FLAT_TERMS = {
+    "board_size": 7, "smell_grid_size": 5, "decay_per_step": 0.1,
+    "emit_intensity": 0.9, "min_center_intensity": 0.5, "max_steps": 35,
+    "barriers_max": 14, "setting": "New York", "hint_max_words": 15,
+    "axis_origin_corner": "top-left", "axis_start_index": 0,
+    "thief_start": [3, 3], "cop_start": [0, 0], "num_games": 6,
+}
+NONCE = "a1" * 16
+OUR_EXTRAS = {"role": "police", "sub_game_number": 1, "scent_model_sha256": "d" * 64}
 
 
 def terms(**overrides) -> dict:
     base = {
+        "terms": dict(FLAT_TERMS),
+        "nonce": NONCE,
+        "signature": sign_terms(FLAT_TERMS, NONCE),
         "role": "thief",
-        "peer_id": "team-b",
-        "games_played": 2,
-        "sub_game": 1,
-        "config_sha256": DIGEST,
-        "scent_lock": SCENT,
+        "sub_game_number": 1,
+        "group_id": "team-b",
+        "counted_games_played": 2,
+        "scent_model_sha256": "d" * 64,
         "step0_commit": "e" * 64,
     }
     base.update(overrides)
@@ -39,7 +49,7 @@ def turn_wire(step: int = 1, sender: str = "thief", **overrides) -> dict:
 @pytest.fixture
 def handler() -> InboundHandler:
     """A police peer expecting calls from the thief."""
-    return InboundHandler(config_sha256=DIGEST, scent_lock=SCENT, expect_role="thief")
+    return InboundHandler(our_terms=dict(FLAT_TERMS), our_extras=dict(OUR_EXTRAS), expect_role="thief")
 
 
 def test_matching_terms_are_accepted(handler: InboundHandler) -> None:
@@ -48,18 +58,20 @@ def test_matching_terms_are_accepted(handler: InboundHandler) -> None:
     assert handler.opponent_games_played == 2
 
 
-def test_a_contract_mismatch_refuses_the_match(handler: InboundHandler) -> None:
-    with pytest.raises(HandshakeRejectedError, match="contract mismatch"):
-        handler.negotiate(terms(config_sha256="f" * 64))
+def test_a_terms_mismatch_refuses_the_match(handler: InboundHandler) -> None:
+    bad = dict(FLAT_TERMS, board_size=9)
+    with pytest.raises(HandshakeRejectedError, match="terms mismatch"):
+        handler.negotiate(terms(terms=bad, signature=sign_terms(bad, NONCE)))
 
 
 def test_a_scent_model_mismatch_refuses_the_match(handler: InboundHandler) -> None:
-    with pytest.raises(HandshakeRejectedError, match="scent-model mismatch"):
-        handler.negotiate(terms(scent_lock="f" * 64))
+    with pytest.raises(HandshakeRejectedError, match="scent_model"):
+        handler.negotiate(terms(scent_model_sha256="f" * 64))
 
 
 def test_terms_from_the_wrong_role_are_refused(handler: InboundHandler) -> None:
-    with pytest.raises(HandshakeRejectedError, match="expected terms from 'thief'"):
+    """Both peers claiming the same side can only deadlock - refuse."""
+    with pytest.raises(HandshakeRejectedError, match="role clash"):
         handler.negotiate(terms(role="police"))
 
 
