@@ -1,11 +1,10 @@
 """M7 end-to-end shell run: play, write the lifecycle files, mail the report.
 
-Plays one local mini-game, assembles all four lifecycle JSON files under
-``results/``, and pushes the result report through the full Gmail pipeline -
-Gatekeeper gates included. With a real ``credentials.json`` beside the repo
-(Appendix A) the report lands in Gmail Drafts; without one, a local stub
-service receives the identical bytes, so the whole pipeline is still
-exercised end-to-end. Run: ``uv run python scripts/m7_report_demo.py``.
+Plays one local mini-game, assembles the four lifecycle JSON files under
+``results/`` in the league's joined shape (uid derived from the negotiated
+terms, settlement hash inline), and mails the result through the gated Gmail
+pipeline - a local stub receives the identical bytes without credentials. The
+league fields ride DISARMED: a demo is not a counted series (rules 37-38).
 """
 
 from __future__ import annotations
@@ -19,20 +18,28 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from police_thief.constants import ROLE_POLICE, ROLE_THIEF
-from police_thief.infra.email.reports import (
+from police_thief.domain.logbook import Logbook
+from police_thief.infra.email.naming import (
     config_file_name,
-    config_payload,
     declaration_file_name,
-    declaration_payload,
     result_file_name,
-    result_payload,
     write_lifecycle_file,
+)
+from police_thief.infra.email.reports import (
+    config_payload,
+    declaration_payload,
+    group_block,
+    links_block,
+    log_payload,
+    result_payload,
 )
 from police_thief.infra.email.sender import configured_sender
 from police_thief.services.runtime import runner_from_config
 from police_thief.shared.config import ConfigManager
-from police_thief.shared.config_io import sha256_of
+from police_thief.shared.interop import derive_game_ids, terms_from_contract
 from police_thief.shared.sysinfo import hardware_spec
+
+OPPONENT = "self-play-opponent"  # a demo double, declared as such - never a real rival's name
 
 
 def git_head() -> str:
@@ -66,50 +73,75 @@ def real_or_stub_service() -> SimpleNamespace:
 
 
 def main() -> None:
-    """One counted mini-game, four lifecycle files, one gated report."""
+    """One demo mini-game, the lifecycle files, one gated (uncounted) report."""
     config = ConfigManager.load(ROLE_POLICE)
-    runner = runner_from_config(config)
-    state = runner.play()
+    state = runner_from_config(config).play()
     outcome = state.outcome
     print(f"mini-game over at step {state.step}: {outcome.event} - {outcome.reason}")
 
+    # The uid MUST derive from the flat negotiated terms (kit SPEC section 6):
+    # a uid derived from anything private never matches the opponent's.
+    terms = terms_from_contract(config.contract)
+    head = git_head()
+    us = str(config.private_value("game", "group_id", "team-tbd"))
+    game_id, game_uid = derive_game_ids(terms, us, OPPONENT)
+    repos = dict(config.private("game").get("repos", {}))
+    links = links_block(game_id, github={us: repos, OPPONENT: {}})
     now = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
-    game_id = f"demo_{now[:10]}"
-    game_uid = sha256_of({"game_id": game_id, "started_at": now})[:16]
-    teams = {"A": {"name": "nell", "members": ["nell"]}, "B": {"name": "self-play", "members": []}}
-    repos = {"A_police": "https://github.com/<user>/police-agent",
-             "A_thief": "https://github.com/<user>/thief-agent",
-             "B_police": "(self-play)", "B_thief": "(self-play)"}
-
-    results_dir = Path("results")
+    groups = [
+        group_block(
+            group_id=us, group_name=str(config.private_value("game", "group_name", us)),
+            members=list(config.private("game").get("members", [])), repos=repos,
+            mcp_servers={"cop": "http://127.0.0.1:8801/mcp", "thief": "http://127.0.0.1:8802/mcp"},
+            llm_model=str(config.private_value("llm", "model", "template")),
+            hardware_spec=hardware_spec(), github_commit=head,
+            counted_games_played=0, code_version="1.0",
+        ),
+        group_block(group_id=OPPONENT, group_name=OPPONENT, members=[], repos={},
+                    mcp_servers={}, llm_model="template", hardware_spec=hardware_spec(),
+                    github_commit=head, counted_games_played=0, code_version="1.0"),
+    ]
+    book = Logbook(game_id, 1, ROLE_POLICE)
+    book.append({"step": state.step, "event": outcome.event, "reason": outcome.reason})
+    book.close({"type": outcome.event})
     declaration = declaration_payload(
-        game_uid=game_uid, game_id=game_id, teams=teams, repositories=repos,
-        mcp_servers={"police": "http://127.0.0.1:8801", "thief": "http://127.0.0.1:8802"},
-        hardware=hardware_spec(), llm_model="claude-haiku",
-        token_budget=config.contract.network.token_budget_per_series,
-        started_at=now, ended_at=now,
+        game_uid=game_uid, game_id=game_id, links=links, timezone="Asia/Jerusalem",
+        started_at=now, num_sub_games=1, groups=groups, counted=False,
+        max_tokens_per_game=config.contract.network.token_budget_per_series,
     )
-    mini = [{"number": 1, "github_commit": git_head(),
-             "police_points": outcome.points_for(ROLE_POLICE),
-             "thief_points": outcome.points_for(ROLE_THIEF), "event": outcome.event}]
+    winner = us if outcome.event == "capture" else OPPONENT
+    rows = [{
+        "sub_game_number": 1, "roles": {us: "police", OPPONENT: "thief"},
+        "started_at": now, "ended_at": now, "result": outcome.event,
+        "winner_group": winner, "tie": False, "steps": state.step,
+        "github_commit": {us: head, OPPONENT: head},
+        "tokens": {us: 0, OPPONENT: 0},  # honest: the template provider spends none
+        "score": {us: outcome.points_for(ROLE_POLICE), OPPONENT: outcome.points_for(ROLE_THIEF)},
+        "log_files": {us: f"log_{game_id}_g01.json", OPPONENT: f"log_{game_id}_g01.json"},
+        "audit": {"log_verified": True, "tampered": False},
+    }]
     result = result_payload(
-        game_uid=game_uid, game_id=game_id, teams=teams, repositories=repos,
-        mini_games=mini, tokens_total=0,
-        agreement={"ours": config.config_sha256, "theirs": config.config_sha256},
+        game_uid=game_uid, game_id=game_id, links=links, timezone="Asia/Jerusalem",
+        group_ids=[us, OPPONENT], sub_games=rows, tie_score=config.contract.scoring.tie_score,
+        games_played={us: 0, OPPONENT: None}, first_meeting=True, counted=False,
     )
+    log = log_payload(game_uid, game_id, 1, links, counted=False, records=book.records,
+                      summary={"sub_game_number": 1, "result": outcome.event,
+                               "steps": state.step})
     for name, payload in [
         (declaration_file_name(game_id), declaration),
-        (config_file_name(game_id, 1), config_payload(game_uid, game_id, 1, config.raw_contract)),
+        (config_file_name(game_id, 1), config_payload(game_uid, game_id, 1, terms, links,
+                                                      counted=False)),
+        (f"log_{game_id}_g01.json", log),
         (result_file_name(game_id), result),
     ]:
-        print(f"  wrote {write_lifecycle_file(results_dir, name, payload)}")
+        print(f"  wrote {write_lifecycle_file(Path('results'), name, payload)}")
 
     sender = configured_sender(config, real_or_stub_service())
     status = sender.send_report(
         subject=f"Police-Thief result {game_id}",
         body="Automated game report attached as machine-readable JSON.",
-        attachment_name=result_file_name(game_id), payload=result,
-    )
+        attachment_name=result_file_name(game_id), payload=result)
     print(f"report → {sender.recipient} [{sender.mode}]: {status}")
     print(f"gatekeeper log: {sender._gatekeeper.log}")  # noqa: SLF001 - demo introspection
 

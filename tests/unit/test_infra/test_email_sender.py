@@ -126,3 +126,25 @@ def test_every_send_passes_the_gatekeeper() -> None:
     assert sender.send_report("s", "b", "r.json", {"n": 2}) == "queued"
     assert len(service.messages_sent) == 1  # the quota gate held the second
     assert keeper.log[0]["label"] == "r.json"
+
+
+def test_a_signed_hebrew_report_survives_the_mime_round_trip() -> None:
+    """The emailed bytes carry the raw Hebrew signature key, never \\u escapes.
+
+    The league joins both teams' reports on these exact bytes (kit SPEC 2/6):
+    an ASCII-escaped or re-serialized attachment hashes differently and nearly
+    scored a real team zero.
+    """
+    from police_thief.infra.email.consensus import SIGNATURE_KEY, sign_report, verify_signed_report
+    from police_thief.shared.config_io import canonical_json
+
+    signed = sign_report({"game_uid": "u", "תוצאה": {"ניקוד": [20, 5]}})
+    message = build_report_email("prof@example.com", "s", "b", "result.json", signed)
+    parsed = email.message_from_bytes(base64.urlsafe_b64decode(message["raw"]))
+    attachment = [part for part in parsed.walk()
+                  if part.get_content_type() == "application/json"][0]
+    raw_bytes = attachment.get_payload(decode=True)
+    assert raw_bytes == canonical_json(signed).encode("utf-8")  # byte-identical to disk
+    assert SIGNATURE_KEY.encode("utf-8") in raw_bytes  # raw UTF-8, not \uXXXX
+    assert b"\\u05d7" not in raw_bytes
+    assert verify_signed_report(json.loads(raw_bytes))  # the signature survives transit
