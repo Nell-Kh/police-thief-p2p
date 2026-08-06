@@ -332,4 +332,23 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   the kit documented this precise failure, from their own live fork, is the whole case
   for reading other people's postmortems as if they were your own.
 
+## Entry 19 — Meeting the sparring peer's wire (phase 8, part 9)
+- **Context:** ran the class kit's sparring peer (their training opponent) in-house and read
+  its transport, negotiate and netplay layers to prepare for the live series (8.7e).
+- **Prompt (essence):** "Before driving a live series, make our MCP surface byte-compatible
+  with what their client actually calls: exact tool names, exact keyword names, the control
+  channel - and catalogue the series dance for the next phase."
+- **Output:** the reference's load-bearing kwarg asymmetry adopted (`submit_audit` takes
+  `payload`, the other three take `message`); `receive_control` tool added with a queued
+  control channel in InboundHandler (kinds enable/status/restart/quit - the only path a
+  refusal can travel, since every tool returns ok); HTTP client sends the right keyword per
+  tool. Catalogued for 8.7e: per-sub-game handshakes with the derived game_uid declared from
+  sub-game 2, role alternation, thief-first turn order, one deadline per expected message,
+  and terminal delivery before silence. 592 tests, 97.8%.
+- **Lesson:** their README's war stories are a syllabus - the dogfood run where both sides
+  waited forever after a PERFECT handshake (turn-order disagreement the locks cannot see),
+  and the self-play bug where a shared outcome variable hid an answer that never travelled.
+  We fixed our own version of that second one (the unspoken rule 47) one day before reading
+  that they had fixed theirs.
+
 *(Entries continue as development proceeds.)*

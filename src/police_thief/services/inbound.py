@@ -38,6 +38,7 @@ class InboundHandler:
         self.audit: dict[str, Any] | None = None
         self.next_step = 1
         self.buffer: dict[int, TurnMessage] = {}
+        self.controls: list[dict[str, Any]] = []
 
     @property
     def expect_role(self) -> str:
@@ -120,6 +121,23 @@ class InboundHandler:
                 self.next_step += 1
 
         return {"ok": True, "step": message.step}
+
+    def receive_control(self, message: dict[str, Any]) -> dict[str, Any]:
+        """Queue an out-of-band control message (enable/status/restart/quit).
+
+        Controls are signalling, not game state: they are stored for the
+        runtime to read and always acknowledged - a refusal, if one is owed,
+        travels back as our own control push, never as a return value.
+        """
+        if isinstance(message, dict):
+            self.controls.append(message)
+        return {"ok": True}
+
+    def next_control(self) -> dict[str, Any] | None:
+        """Pop the oldest unread control message, if any."""
+        if not self.controls:
+            return None
+        return self.controls.pop(0)
 
     def submit_audit(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Accept the opponent's end-of-game disclosure for the mutual audit."""

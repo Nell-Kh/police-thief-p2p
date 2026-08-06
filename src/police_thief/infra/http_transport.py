@@ -59,7 +59,8 @@ class McpHttpTransport:
             raise TransportError("fastmcp is required for network play") from error
         try:
             async with Client(self._url) as client:
-                result = await client.call_tool(tool, {"payload": payload})
+                arg_name = "payload" if tool == "submit_audit" else "message"
+                result = await client.call_tool(tool, {arg_name: payload})
         except Exception as error:
             raise TransportError(f"{tool}: call to {self._url} failed ({error})") from error
         return _extract_reply(result)

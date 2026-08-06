@@ -24,7 +24,7 @@ def _tools(server) -> dict:
 
 
 def test_the_server_exposes_the_reference_tool_set(handler: InboundHandler) -> None:
-    assert set(TOOL_NAMES) == {"negotiate", "receive_turn", "submit_audit"}
+    assert set(TOOL_NAMES) == {"negotiate", "receive_turn", "submit_audit", "receive_control"}
     assert set(TOOL_NAMES) <= set(_tools(build_server(handler)))
 
 
@@ -43,11 +43,31 @@ def test_every_registered_tool_is_documented(handler: InboundHandler) -> None:
 def test_a_registered_tool_forwards_to_the_handler(handler: InboundHandler) -> None:
     """The adapter holds no logic of its own - it delegates every call."""
     wire = {
-        "step": 2,
+        "step": 1,
         "sender": "thief",
         "hint": "gone east",
         "smell_grid": {"1,1": 0.5},
         "commit": "a" * 64,
     }
-    asyncio.run(build_server(handler).call_tool("receive_turn", {"payload": wire}))
-    assert handler.commitments[2] == "a" * 64
+    asyncio.run(build_server(handler).call_tool("receive_turn", {"message": wire}))
+    assert handler.commitments[1] == "a" * 64
+
+
+def test_the_kwarg_asymmetry_is_the_references(handler: InboundHandler) -> None:
+    """submit_audit takes ``payload``; the other three take ``message``.
+
+    It looks like an inconsistency and it is load-bearing: the interop kit
+    verified it against the reference, and a peer sending the wrong keyword
+    gets a schema fault instead of a game.
+    """
+    tools = _tools(build_server(handler))
+    for name in ("negotiate", "receive_turn", "receive_control"):
+        assert "message" in tools[name].parameters["properties"]
+    assert "payload" in tools["submit_audit"].parameters["properties"]
+
+
+def test_control_messages_are_queued_and_acknowledged(handler: InboundHandler) -> None:
+    control = {"kind": "enable", "sender": "thief", "sub_game_number": 2}
+    asyncio.run(build_server(handler).call_tool("receive_control", {"message": control}))
+    assert handler.next_control() == control
+    assert handler.next_control() is None
