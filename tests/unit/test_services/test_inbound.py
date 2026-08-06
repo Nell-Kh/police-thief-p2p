@@ -80,11 +80,11 @@ def test_no_games_count_before_negotiation(handler: InboundHandler) -> None:
 
 
 def test_a_turn_is_queued_and_its_commitment_recorded(handler: InboundHandler) -> None:
-    reply = handler.receive_turn(turn_wire(step=3))
+    reply = handler.receive_turn(turn_wire(step=1))
     assert reply["ok"]
-    assert handler.commitments[3] == "a" * 64
+    assert handler.commitments[1] == "a" * 64
     message = handler.next_turn()
-    assert message is not None and message.step == 3
+    assert message is not None and message.step == 1
     assert handler.next_turn() is None
 
 
@@ -98,6 +98,25 @@ def test_a_second_commitment_for_a_step_is_refused(handler: InboundHandler) -> N
     handler.receive_turn(turn_wire(step=1))
     with pytest.raises(HandshakeRejectedError, match="already committed"):
         handler.receive_turn(turn_wire(step=1, commit="b" * 64))
+
+def test_a_concession_records_the_final_commit_without_overwriting(handler: InboundHandler) -> None:
+    # First commit for step 1
+    handler.receive_turn(turn_wire(step=1, commit="a" * 64))
+
+    # Thief concedes on step 1 with a new commit
+    reply = handler.receive_turn(turn_wire(step=1, commit="b" * 64, claim_response={"claim": [3, 3], "caught": True}))
+    assert reply["ok"]
+
+    # Original step commitment is preserved
+    assert handler.commitments[1] == "a" * 64
+    # The concession commit is stored separately
+    assert handler.final_commit == "b" * 64
+
+
+def test_a_same_step_survival_claim_with_a_new_commit_is_refused(handler: InboundHandler) -> None:
+    handler.receive_turn(turn_wire(step=1, commit="a" * 64))
+    with pytest.raises(HandshakeRejectedError, match="already committed"):
+        handler.receive_turn(turn_wire(step=1, commit="b" * 64, win_claim={"type": "survival"}))
 
 
 def test_a_cleartext_position_is_refused_at_the_door(handler: InboundHandler) -> None:

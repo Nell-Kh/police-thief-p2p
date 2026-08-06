@@ -145,7 +145,7 @@ def concession_message(*, view: WorldView, book: Logbook) -> TurnMessage:
         hint="",
         smell_grid=encode_scent(view.my_scent.snapshot()),
         commit=record["commit"],
-        win_claim={"type": "capture", "winner": "police"},
+        claim_response={"claim": list(view.position), "caught": True},
     )
 
 

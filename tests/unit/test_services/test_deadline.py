@@ -108,3 +108,16 @@ def test_clearing_abandons_every_in_flight_request() -> None:
 
 def test_the_timeout_is_exposed() -> None:
     assert DeadlineTracker(30).timeout_sec == 30
+
+
+def test_tolerated_traffic_never_renews_the_deadline() -> None:
+    clock = FakeClock()
+    tracker = DeadlineTracker(100, clock=clock)
+    tracker.start("commit")
+
+    clock.advance(90)
+    tracker.check_all()
+
+    clock.advance(10)
+    with pytest.raises(DeadlineExpiredError, match="exceeded its 100s deadline"):
+        tracker.check_all()

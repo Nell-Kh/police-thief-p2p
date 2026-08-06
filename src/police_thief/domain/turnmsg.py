@@ -10,6 +10,7 @@ the message: receiving one makes it your turn.
 
 from __future__ import annotations
 
+import datetime
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -65,6 +66,7 @@ class TurnMessage:
             "capture_claim": self.capture_claim,
             "claim_response": self.claim_response,
             "win_claim": self.win_claim,
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
         wire.update(self.extras)
         return wire

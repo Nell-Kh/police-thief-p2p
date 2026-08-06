@@ -35,6 +35,7 @@ class WorldView:
     pending_claim: list[int] | None = None
     opponent_step: int = 0
     opponent_barriers: int = 0
+    opponent_commits: dict[int, str] = field(default_factory=dict)
     claim_gaps: list[int] = field(default_factory=list)
     history: list[str] = field(default_factory=list)
 

@@ -29,8 +29,9 @@ def view(config: ConfigManager) -> WorldView:
 
 
 def msg(step: int = 1, sender: str = "police", **extra) -> TurnMessage:
+    commit_val = extra.pop("commit", "a" * 64)
     return TurnMessage(step=step, sender=sender, hint="", smell_grid=extra.pop("smell", {}),
-                       commit="a" * 64, **extra)
+                       commit=commit_val, **extra)
 
 
 def assert_violation(view: WorldView, config: ConfigManager, message: TurnMessage) -> None:
@@ -73,17 +74,17 @@ def test_a_skipped_step_is_a_violation(view, config) -> None:
 
 
 def test_a_replayed_step_without_a_win_claim_is_a_violation(view, config) -> None:
-    receive_turn(view, msg(step=1), config.contract)
-    assert_violation(view, config, msg(step=1))
+    receive_turn(view, msg(step=1, commit="c1"), config.contract)
+    assert_violation(view, config, msg(step=1, commit="c2"))
 
 
 def test_the_concession_replay_exception_is_honoured(config) -> None:
     """A concession legally re-announces the current step (police side)."""
     police = WorldView.open("police", config.contract)
-    receive_turn(police, msg(step=1, sender="thief"), config.contract)
-    receive_turn(police, msg(step=1, sender="thief", win_claim={"type": "capture"}),
+    receive_turn(police, msg(step=1, sender="thief", commit="c1"), config.contract)
+    receive_turn(police, msg(step=1, sender="thief", claim_response={"claim": [0, 0], "caught": True}, commit="c2"),
                  config.contract)
-    assert police.result == {"type": "capture", "winner": "police", "how": "conceded"}
+    assert police.result == {"type": "capture", "winner": "police", "how": "capture claim"}
 
 
 # --- scent physics forgery --------------------------------------------------

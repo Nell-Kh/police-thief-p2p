@@ -24,16 +24,20 @@ class InboundHandler:
     """Receives, validates and queues the opponent's calls."""
 
     def __init__(
-        self, our_terms: dict[str, Any], our_extras: dict[str, Any], expect_role: str
+        self, our_terms: dict[str, Any], our_extras: dict[str, Any], expect_role: str, reorder_window: int = 2
     ) -> None:
         """Bind the handler to our signed terms, declarations and the rival role."""
         self._our_terms = our_terms
         self._our_extras = our_extras
         self._expect_role = expect_role
+        self.reorder_window = reorder_window
         self.opponent_terms: dict[str, Any] | None = None
         self.turns: list[TurnMessage] = []
         self.commitments: dict[int, str] = {}
+        self.final_commit: str | None = None
         self.audit: dict[str, Any] | None = None
+        self.next_step = 1
+        self.buffer: dict[int, TurnMessage] = {}
 
     @property
     def expect_role(self) -> str:
@@ -82,10 +86,39 @@ class InboundHandler:
             raise HandshakeRejectedError(
                 f"expected a turn from {self._expect_role!r}, got {message.sender!r}"
             )
+        is_zero_step_final = (
+            message.claim_response is not None
+            and message.claim_response.get("caught") is True
+        )
+        is_legacy_final = (
+            message.win_claim is not None
+            and message.win_claim.get("type") == "capture"
+        )
+
         if message.step in self.commitments:
-            raise HandshakeRejectedError(f"step {message.step} was already committed")
+            if message.commit == self.commitments[message.step]:
+                return {"ok": True, "step": message.step}
+            if not (is_zero_step_final or is_legacy_final):
+                raise HandshakeRejectedError(f"step {message.step} was already committed")
+            self.final_commit = message.commit
+            self.turns.append(message)
+            return {"ok": True, "step": message.step}
+
+        if message.step < self.next_step:
+            return {"ok": True, "step": message.step}
+
         self.commitments[message.step] = message.commit
-        self.turns.append(message)
+        if is_zero_step_final or is_legacy_final:
+            self.final_commit = message.commit
+
+        if message.step > self.next_step + self.reorder_window:
+            self.turns.append(message)
+        else:
+            self.buffer[message.step] = message
+            while self.next_step in self.buffer:
+                self.turns.append(self.buffer.pop(self.next_step))
+                self.next_step += 1
+
         return {"ok": True, "step": message.step}
 
     def submit_audit(self, payload: dict[str, Any]) -> dict[str, Any]:

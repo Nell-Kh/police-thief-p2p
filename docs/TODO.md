@@ -538,7 +538,7 @@ with a meaningful message.
 | 10.2 | Maintain `integration/test_inference_loop.py` (4 tests) green under every refactor | P0 | team | ✔ |
 | 10.3 | Maintain `integration/test_local_game.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.4 | Maintain `integration/test_two_peers.py` (7 tests) green under every refactor | P0 | team | ✔ |
-| 10.5 | Maintain `interop/test_kit_vectors.py` (11 tests) green under every refactor | P0 | team | ✔ |
+| 10.5 | Maintain `interop/test_kit_vectors.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.6 | Maintain `unit/test_constants.py` (15 tests) green under every refactor | P0 | team | ✔ |
 | 10.7 | Maintain `unit/test_domain/test_belief.py` (17 tests) green under every refactor | P0 | team | ✔ |
 | 10.8 | Maintain `unit/test_domain/test_board.py` (18 tests) green under every refactor | P0 | team | ✔ |
@@ -569,11 +569,11 @@ with a meaningful message.
 | 10.33 | Maintain `unit/test_infra/test_mcp_client.py` (9 tests) green under every refactor | P0 | team | ✔ |
 | 10.34 | Maintain `unit/test_infra/test_mcp_server.py` (4 tests) green under every refactor | P0 | team | ✔ |
 | 10.35 | Maintain `unit/test_infra/test_transport.py` (5 tests) green under every refactor | P0 | team | ✔ |
-| 10.36 | Maintain `unit/test_services/test_concession.py` (6 tests) green under every refactor | P0 | team | ✔ |
+| 10.36 | Maintain `unit/test_services/test_concession.py` (8 tests) green under every refactor | P0 | team | ✔ |
 | 10.37 | Maintain `unit/test_services/test_deadline.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.38 | Maintain `unit/test_services/test_deception.py` (9 tests) green under every refactor | P0 | team | ✔ |
 | 10.39 | Maintain `unit/test_services/test_hostile_wire.py` (14 tests) green under every refactor | P0 | team | ✔ |
-| 10.40 | Maintain `unit/test_services/test_inbound.py` (12 tests) green under every refactor | P0 | team | ✔ |
+| 10.40 | Maintain `unit/test_services/test_inbound.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.41 | Maintain `unit/test_services/test_orchestrator.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.42 | Maintain `unit/test_services/test_phase_machine.py` (14 tests) green under every refactor | P0 | team | ✔ |
 | 10.43 | Maintain `unit/test_services/test_watchdog.py` (9 tests) green under every refactor | P0 | team | ✔ |
@@ -584,6 +584,11 @@ with a meaningful message.
 | 10.48 | Maintain `unit/test_shared/test_contract_values.py` (7 tests) green under every refactor | P0 | team | ✔ |
 | 10.49 | Maintain `unit/test_shared/test_gatekeeper.py` (7 tests) green under every refactor | P0 | team | ✔ |
 | 10.50 | Maintain `unit/test_shared/test_version.py` (11 tests) green under every refactor | P0 | team | ✔ |
+
+## Test Accounting (v1/v2 changes from 580 baseline)
+- `tests/interop/test_kit_vectors.py`: Added `test_delivery_contract_arrivals` and `test_no_reorder_window` (+2)
+- `tests/unit/test_services/test_concession.py`: Added `test_the_police_accepts_the_new_kit_shape_concession` and `test_a_claim_response_from_the_police_is_a_violation` (+2)
+- `tests/unit/test_services/test_inbound.py`: Added `test_a_concession_records_the_final_commit_without_overwriting` (+1)
 
 ## Milestones
 

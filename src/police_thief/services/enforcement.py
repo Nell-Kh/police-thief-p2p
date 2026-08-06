@@ -46,8 +46,22 @@ def _check_step(view: WorldView, message: TurnMessage, contract: GameContract) -
     expected = view.opponent_step + 1
     if message.step == expected:
         return None
-    if message.step == view.opponent_step and message.win_claim is not None:
+
+    if message.step in view.opponent_commits and message.commit == view.opponent_commits[message.step]:
+        return None
+
+    is_zero_step_final = (
+        message.claim_response is not None
+        and message.claim_response.get("caught") is True
+    )
+    is_legacy_final = (
+        message.win_claim is not None
+        and message.win_claim.get("type") == "capture"
+    )
+
+    if message.step == view.opponent_step and (is_zero_step_final or is_legacy_final):
         return None  # a concession re-announces the current step
+
     return f"step {message.step} out of order (expected {expected})"
 
 

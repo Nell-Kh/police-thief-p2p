@@ -41,7 +41,7 @@ def test_a_trapping_barrier_makes_the_thief_concede(config_thief: ConfigManager)
     trap = message("police", barrier_placed=list(runtime.view.position))
     reply = runtime.on_turn(trap)
     assert runtime.result == {"type": "capture", "winner": "police", "how": "trapping barrier"}
-    assert reply is not None and reply.win_claim == {"type": "capture", "winner": "police"}
+    assert reply is not None and reply.claim_response == {"claim": list(runtime.view.position), "caught": True}
     assert reply.sender == "thief"
 
 
@@ -68,11 +68,23 @@ def test_the_police_accepts_the_concession(config_police: ConfigManager) -> None
     assert reply is None  # only the thief ever concedes
 
 
+def test_the_police_accepts_the_new_kit_shape_concession(config_police: ConfigManager) -> None:
+    runtime = MatchRuntime(config_police, game_id="c4b", sub_game=1, github_commit="x")
+    # A true concession uses the claim_response format
+    reply = runtime.on_turn(message("thief", claim_response={"claim": [0, 0], "caught": True}))
+    assert runtime.result == {"type": "capture", "winner": "police", "how": "capture claim"}
+    assert reply is None  # only the thief ever concedes
+
 def test_a_concession_from_the_police_side_is_ignored(config_thief: ConfigManager) -> None:
     """A malicious cop cannot win by 'conceding' on the thief's behalf."""
     view = WorldView.open("thief", config_thief.contract)
     receive_turn(view, message("police", win_claim={"type": "capture"}), config_thief.contract)
     assert view.result is None
+
+def test_a_claim_response_from_the_police_is_a_violation(config_thief: ConfigManager) -> None:
+    view = WorldView.open("thief", config_thief.contract)
+    receive_turn(view, message("police", claim_response={"claim": [0, 0], "caught": True}), config_thief.contract)
+    assert view.result is not None and view.result["type"] == "technical_loss"
 
 
 def test_a_survival_claim_from_the_police_side_is_ignored(

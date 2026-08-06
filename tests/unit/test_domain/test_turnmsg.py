@@ -47,7 +47,9 @@ def test_a_valid_message_parses_and_round_trips() -> None:
     assert parsed.step == 3
     assert parsed.sender == "thief"
     assert parsed.commit == "a" * 64
-    assert TurnMessage.from_wire(parsed.to_wire()) == parsed
+    wire_out = parsed.to_wire()
+    wire_out.pop("timestamp", None)
+    assert TurnMessage.from_wire(wire_out) == parsed
 
 
 def test_every_mandatory_field_is_required() -> None:

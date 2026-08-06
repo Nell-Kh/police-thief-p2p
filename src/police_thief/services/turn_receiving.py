@@ -30,6 +30,11 @@ def receive_turn(view: WorldView, message: TurnMessage, contract: GameContract) 
         view.result = {"type": "technical_loss", "violator": message.sender, "how": violation}
         view.note(f"protocol violation by {message.sender}: {violation}")
         return
+    if message.step in view.opponent_commits:
+        if message.commit == view.opponent_commits[message.step]:
+            return
+    else:
+        view.opponent_commits[message.step] = message.commit
     view.opponent_step = max(view.opponent_step, message.step)
     scent = decode_scent(message.smell_grid)
     view.belief.diffuse()
