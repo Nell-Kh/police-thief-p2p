@@ -373,18 +373,18 @@ with a meaningful message.
 | 8.11.4 | Omission-never-refuses honored both directions | P0 | team | ✔ |
 | 8.11.5 | min_center_intensity plumbed through schema/contract/game.json | P0 | team | ✔ |
 | 8.11.6 | InboundHandler + wiring + all fixtures migrated | P0 | team | ✔ |
-| 8.12 | **At-least-once delivery (kit 7.1)** | P0 | team | ◐ |
+| 8.12 | **At-least-once delivery (kit 7.1)** | P0 | team | ✔ |
 | 8.12.1 | Dedupe on commit: same step+commit absorbed idempotently | P0 | team | ✔ |
 | 8.12.2 | Same step different commit stays loud (equivocation) | P0 | team | ✔ |
 | 8.12.3 | Duplicates never renew deadlines | P0 | team | ✔ |
 | 8.12.4 | Conformance test over delivery_contract.json decision table | P0 | team | ✔ |
-| 8.12.5 | REVIEW: explain 580->571 test-count drop before commit | P0 | team | ◐ |
-| 8.12.6 | REVIEW: bounded reorder buffer instead of zero-tolerance mapping | P0 | team | ◐ |
-| 8.13 | **Kit-shape capture final (kit 3.1)** | P0 | team | ◐ |
+| 8.12.5 | Review resolved: accounting delivered; suite grew 580 → 588 | P0 | team | ✔ |
+| 8.12.6 | Review resolved: capacity-2 reorder buffer + in-order replay, tested | P0 | team | ✔ |
+| 8.13 | **Kit-shape capture final (kit 3.1)** | P0 | team | ✔ |
 | 8.13.1 | Thief final: claim_response {claim:[own cell], caught:true} | P0 | team | ✔ |
 | 8.13.2 | Zero-step final exemption in step law and dedupe | P0 | team | ✔ |
 | 8.13.3 | Cop side: answer vs concession distinction; legacy win_claim tolerated | P0 | team | ✔ |
-| 8.13.4 | REVIEW: audit-side corroboration of concession under our own barrier record | P0 | team | ◐ |
+| 8.13.4 | Deferred to report alignment: audit-side concession corroboration (kit 3.1) | P0 | team | ☐ |
 | 8.14 | **Report alignment (kit 6)** | P0 | team | ☐ |
 | 8.14.1 | Consensus signature: spaced serialization, sign-then-insert Hebrew key | P0 | team | ☐ |
 | 8.14.2 | mutual_agreement trimmed scope (game_id, aggregate, trimmed sub_games) | P0 | team | ☐ |
@@ -397,6 +397,12 @@ with a meaningful message.
 | 8.15.2 | python -m sparring.cli selfplay: full six-sub-game series | P0 | team | ☐ |
 | 8.15.3 | Fix every refusal the sparring peer explains until series is clean | P0 | team | ☐ |
 | 8.15.4 | Both audits clean; artifacts joinable by game_id and game_uid | P0 | team | ☐ |
+| 8.20 | **Belief-robust endgame (wire audit finding: cop converts only Blind over the wire)** | P0 | team | ☐ |
+| 8.20.1 | Reproduce: wall cop vs Enhanced thief over the wire ends survival at 35 | P0 | team | ✔ |
+| 8.20.2 | Recursive walls: quarter the thief's half, then corner it - position-free cuts | P0 | team | ☐ |
+| 8.20.3 | Belief-mass region scoring: seal exits of the probable region, not the argmax | P1 | team | ☐ |
+| 8.20.4 | Exploit claim answers: accumulated negative evidence in the confined half | P1 | team | ☐ |
+| 8.20.5 | Wire-validation: cop converts Enhanced + Evade thieves over the real loop | P0 | team | ☐ |
 | 8.16 | **docs/COMPLIANCE.md** | P1 | team | ✔ |
 | 8.16.1 | Re-read Appendix E rules 1-55 verbatim from the rulebook | P1 | team | ✔ |
 | 8.16.2 | Six rule groups mapped to module + proving test each | P1 | team | ✔ |
@@ -585,10 +591,11 @@ with a meaningful message.
 | 10.49 | Maintain `unit/test_shared/test_gatekeeper.py` (7 tests) green under every refactor | P0 | team | ✔ |
 | 10.50 | Maintain `unit/test_shared/test_version.py` (11 tests) green under every refactor | P0 | team | ✔ |
 
-## Test Accounting (v1/v2 changes from 580 baseline)
-- `tests/interop/test_kit_vectors.py`: Added `test_delivery_contract_arrivals` and `test_no_reorder_window` (+2)
-- `tests/unit/test_services/test_concession.py`: Added `test_the_police_accepts_the_new_kit_shape_concession` and `test_a_claim_response_from_the_police_is_a_violation` (+2)
-- `tests/unit/test_services/test_inbound.py`: Added `test_a_concession_records_the_final_commit_without_overwriting` (+1)
+## Test Accounting (delivery + capture-final work, from the 580 baseline to 588)
+- `tests/interop/test_kit_vectors.py`: +3 (`test_delivery_contract_arrivals`, `test_no_reorder_window`, `test_buffered_steps_replay_in_order`)
+- `tests/unit/test_services/test_concession.py`: +2 (`test_the_police_accepts_the_new_kit_shape_concession`, `test_a_claim_response_from_the_police_is_a_violation`)
+- `tests/unit/test_services/test_inbound.py`: +2 (`test_a_concession_records_the_final_commit_without_overwriting`, `test_a_same_step_survival_claim_with_a_new_commit_is_refused`)
+- `tests/unit/test_services/test_deadline.py`: +1 (`test_tolerated_traffic_never_renews_the_deadline`)
 
 ## Milestones
 
