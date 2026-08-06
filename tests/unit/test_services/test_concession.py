@@ -32,7 +32,7 @@ def message(sender: str, **extra) -> TurnMessage:
     """A minimal legal turn message from ``sender``."""
     return TurnMessage(
         step=extra.pop("step", 1), sender=sender, hint="", smell_grid={},
-        commit="a" * 64, **extra,
+        commit=extra.pop("commit", "a" * 64), **extra,
     )
 
 
@@ -97,3 +97,33 @@ def test_a_survival_claim_from_the_police_side_is_ignored(
         config_police.contract,
     )
     assert view.result is None
+
+def test_a_boxed_in_thief_concedes_rule_47(config_thief: ConfigManager) -> None:
+    """Rule 47: every exit a barrier, STAY does not rescue - and it must be SAID.
+
+    The kit's SPEC 3.1 warning verbatim: a thief that does not speak this
+    ending forks the game - it settles CAPTURE while the cop settles TIMEOUT.
+    Found live in our own wire audit: the cop boxed the thief at step 28 and
+    the game silently ran to a false survival.
+    """
+    runtime = MatchRuntime(config_thief, game_id="r47", sub_game=1, github_commit="x")
+    row, col = runtime.view.position
+    exits = [(row - 1, col), (row + 1, col), (row, col - 1), (row, col + 1)]
+    reply = None
+    for step, cell in enumerate(exits, start=1):
+        reply = runtime.on_turn(message("police", step=step, commit=f"c{step}" * 8,
+                                        barrier_placed=list(cell)))
+    assert runtime.result == {"type": "capture", "winner": "police", "how": "boxed in (rule 47)"}
+    assert reply is not None
+    assert reply.claim_response == {"claim": [row, col], "caught": True}
+
+
+def test_a_thief_with_one_exit_left_does_not_concede(config_thief: ConfigManager) -> None:
+    runtime = MatchRuntime(config_thief, game_id="r47b", sub_game=1, github_commit="x")
+    row, col = runtime.view.position
+    for step, cell in enumerate([(row - 1, col), (row + 1, col), (row, col - 1)], start=1):
+        reply = runtime.on_turn(message("police", step=step, commit=f"c{step}" * 8,
+                                        barrier_placed=list(cell)))
+        assert reply is None
+    assert runtime.result is None  # one door still open - keep running
+

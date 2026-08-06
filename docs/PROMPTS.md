@@ -311,4 +311,25 @@ The human (nell) directs, reviews and approves; the agent plans, generates and v
   anrbj666's, guaranteed to refuse them for no reason. Interop is not a protocol problem,
   it is a bytes problem - and bytes are only provable with someone else's fixtures.
 
+## Entry 18 — The unspoken ending (phase 8, part 8)
+- **Context:** the wire audit showed our cop converting only the weakest thief over the
+  real loop despite 1900/1900 in perfect information. The queued hypothesis was belief
+  error in the endgame; the plan was recursive walls and belief-mass sealing.
+- **Prompt (essence):** "Instrument the losing match step by step before designing
+  anything: belief error, wall progress, stones, positions, every turn."
+- **Output:** the trace acquitted the belief entirely - by step 28 the argmax was EXACT,
+  both corner exits were sealed, and the thief was boxed in: rule 47, captured by the
+  book's own law. But rule-47 endings are facts only the thief can observe, and our thief
+  only spoke the rule-46 case (a barrier on its own cell); boxed in, it silently STAYed
+  to a false survival. One conditional in MatchRuntime.on_turn (is_trapped -> kit-shape
+  concession) closed it: Blind and Enhanced thieves now fall at step 28 over the wire
+  with agreed verdicts. The kit's SPEC 3.1 warning described this exact fork, found live
+  between two copies of their own sparring peer. 590 tests, 97.8%.
+- **Lesson:** we almost built two sophisticated mechanisms (recursive walls, belief-mass
+  sealing) to fix a problem that was one missing sentence on the wire. Instrument before
+  designing: the cheapest diagnostic - printing the truth next to the belief every step -
+  replaced a week of speculative strategy work with a five-line fix. And the fact that
+  the kit documented this precise failure, from their own live fork, is the whole case
+  for reading other people's postmortems as if they were your own.
+
 *(Entries continue as development proceeds.)*

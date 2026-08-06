@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..domain.logbook import Logbook
+from ..domain.rules import is_trapped
 from ..domain.sealing import step0_record
 from ..domain.turnmsg import TurnMessage
 from ..infra.llm import TokenLedger, build_provider
@@ -98,16 +99,21 @@ class MatchRuntime:
 
         Returns:
             A final concession message when this turn just ended the game
-            against us (the thief walled in or claimed correctly) - the
-            caller must deliver it, or the winner never learns it won. None
-            in every other case.
+            against us - the thief's cell was walled (rule 46), the thief is
+            boxed in with no legal step (rule 47), or a capture claim landed.
+            Rules 46/47 are facts only the thief can observe (kit SPEC §3.1):
+            a thief that stays silent here forks the game - it settles CAPTURE
+            locally while the cop, having learned nothing, waits out the clock
+            and settles TIMEOUT, the exact contradictory-report shape that
+            zeroes both teams. The caller must deliver the reply.
         """
         receive_turn(self.view, message, self.contract)
-        if (
-            self.view.role == "thief"
-            and not self._conceded
-            and (self.view.result or {}).get("winner") == "police"
-        ):
+        if self.view.role != "thief" or self._conceded:
+            return None
+        if self.view.result is None and is_trapped(self.view.board, self.view.position):
+            self.view.result = {"type": "capture", "winner": "police", "how": "boxed in (rule 47)"}
+            self.view.note("every exit is a barrier - conceding the rule-47 capture")
+        if (self.view.result or {}).get("winner") == "police":
             self._conceded = True
             return concession_message(view=self.view, book=self.book)
         return None

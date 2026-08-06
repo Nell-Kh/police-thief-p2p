@@ -397,12 +397,12 @@ with a meaningful message.
 | 8.15.2 | python -m sparring.cli selfplay: full six-sub-game series | P0 | team | ☐ |
 | 8.15.3 | Fix every refusal the sparring peer explains until series is clean | P0 | team | ☐ |
 | 8.15.4 | Both audits clean; artifacts joinable by game_id and game_uid | P0 | team | ☐ |
-| 8.20 | **Belief-robust endgame (wire audit finding: cop converts only Blind over the wire)** | P0 | team | ☐ |
+| 8.20 | **Wire-endgame finding: root cause was the unspoken rule-47 ending, now conceded** | P0 | team | ✔ |
 | 8.20.1 | Reproduce: wall cop vs Enhanced thief over the wire ends survival at 35 | P0 | team | ✔ |
-| 8.20.2 | Recursive walls: quarter the thief's half, then corner it - position-free cuts | P0 | team | ☐ |
-| 8.20.3 | Belief-mass region scoring: seal exits of the probable region, not the argmax | P1 | team | ☐ |
-| 8.20.4 | Exploit claim answers: accumulated negative evidence in the confined half | P1 | team | ☐ |
-| 8.20.5 | Wire-validation: cop converts Enhanced + Evade thieves over the real loop | P0 | team | ☐ |
+| 8.20.2 | Root cause found instead: thief never SAID the rule-47 ending (kit 3.1) - concession added in on_turn | P0 | team | ✔ |
+| 8.20.3 | Belief-mass sealing judged unnecessary: with rule 47 spoken, the cop converts reference-caliber thieves | P2 | team | ✔ |
+| 8.20.4 | Claim-answer negative evidence already active (belief.exclude); no further work needed | P2 | team | ✔ |
+| 8.20.5 | Wire-validated: Blind and Enhanced captured @28 with agreed verdicts; only our own elite evader survives | P0 | team | ✔ |
 | 8.16 | **docs/COMPLIANCE.md** | P1 | team | ✔ |
 | 8.16.1 | Re-read Appendix E rules 1-55 verbatim from the rulebook | P1 | team | ✔ |
 | 8.16.2 | Six rule groups mapped to module + proving test each | P1 | team | ✔ |
