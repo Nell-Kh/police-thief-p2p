@@ -5,11 +5,11 @@
 version = "1.00"
 
 [game]
-group_name = "TEAM-TBD"
-group_id = "team-tbd"
+group_name = "YANELL11"
+group_id = "yanell11"
 sub_game_number = 1
-members = ["id-TBD"]
-repos = { cop = "https://github.com/TBD/police-agent", thief = "https://github.com/TBD/thief-agent" }
+members = ["YanalSerhan"]
+repos = { cop = "https://github.com/Nell-Kh/police-thief-p2p", thief = "https://github.com/Nell-Kh/police-thief-p2p" }
 
 [network]
 my_port = 8801                                 # MY MCP server port (police)
