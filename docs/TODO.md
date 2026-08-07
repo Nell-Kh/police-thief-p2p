@@ -529,7 +529,7 @@ with a meaningful message.
 | 9.2.3 | Update step-0 group fields; re-run suite | P0 | team | ☐ |
 | 9.3 | **Screenshots** | P0 | team | ◐ |
 | 9.3.1 | `scripts/capture_live_gui.py`: plays a real two-runtime local match (`test_two_peers.py` pattern) against shipped `config/`, drives police's `LiveWindow` every turn, DPI-aware screen-grabs the real Tk window once belief committed to an argmax (step 5) — `docs/img/live_gui_belief_heatmap.png`: own position "C", one placed barrier, heatmap gradient, "T?" argmax, "LOCKED" banner, "step 5 \| barriers used 2" — never the thief's true cell (rules #8/#9) | P0 | team | ✔ |
-| 9.3.2 | Run replay viewer on a saved log; capture Verified OK stamp | P0 | team | ☐ |
+| 9.3.2 | `scripts/capture_replay_viewer.py`: same two-runtime local match, `police.book.save(logs/)` to the real on-disk `Logbook` format, opens the real `ReplayWindow` on that file, steps to the final turn (34, `survival`/thief), asserts `session.overall_verdict() == "Verified OK"` before capturing — `docs/img/replay_verified_ok.png`: green "Verified OK" banner, step 34, the closing hint, board with barriers, back/forward controls | P0 | team | ✔ |
 | 9.3.3 | Embed both into the README report section | P0 | team | ☐ |
 | 9.4 | **Friendlies** | P0 | team | ☐ |
 | 9.4.1 | Exchange first-contact message (turn order, model locks, ledger counts) | P0 | team | ☐ |
