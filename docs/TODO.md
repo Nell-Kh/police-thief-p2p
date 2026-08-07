@@ -516,13 +516,13 @@ with a meaningful message.
 
 | # | Task | Priority | Owner | Status |
 |---|---|---|---|---|
-| 9.1 | **Gmail OAuth day** | P0 | team | ☐ |
-| 9.1.1 | Google Cloud project; enable Gmail API | P0 | team | ☐ |
-| 9.1.2 | OAuth consent screen (External) + test users | P0 | team | ☐ |
-| 9.1.3 | Scope restricted to gmail.send only | P0 | team | ☐ |
-| 9.1.4 | Desktop-app OAuth client; download credentials.json into repo root (git-ignored) | P0 | team | ☐ |
-| 9.1.5 | First authorization flow -> token.json minted | P0 | team | ☐ |
-| 9.1.6 | Draft-mode rehearsal run; verify draft in mailbox | P0 | team | ☐ |
+| 9.1 | **Gmail OAuth day** | P0 | team | ✔ |
+| 9.1.1 | Cloud Console project created; Gmail API enabled | P0 | team | ✔ |
+| 9.1.2 | OAuth consent screen (External, Testing) + owner's account added as a Test user - first attempt hit Google's "Access blocked" (test user missing), fixed by adding it in Console, no code change | P0 | team | ✔ |
+| 9.1.3 | Scope restricted to gmail.send only - already true in code (`infra/email/oauth.py`'s `GMAIL_SEND_SCOPE` is the single scope ever requested); `token.json`'s minted `scopes` field verified to contain exactly that one URL | P0 | team | ✔ |
+| 9.1.4 | Desktop-app OAuth Client ID (`"installed"` key, `client_id`/`client_secret`, `redirect_uris: ["http://localhost"]` - confirmed desktop, not web); `credentials.json` verified present at repo root and `git check-ignore` confirms it is ignored | P0 | team | ✔ |
+| 9.1.5 | First authorization flow ran (`InstalledAppFlow.run_local_server`, real browser consent) -> `token.json` minted with a `refresh_token`, `scopes == ["gmail.send"]`, `valid == True`; verified git-ignored | P0 | team | ✔ |
+| 9.1.6 | REAL FINDING: `mode="draft"` calls Gmail's `drafts().create()`, which the API itself requires `gmail.compose` for - broader than the `gmail.send`-only scope rule #30 mandates, so draft mode can never work under a compliant scope (not a bug in our code, a hard Google API constraint) - confirmed by a live 403 `insufficientPermissions` on the first attempt. Real games use `mode="send"` anyway (`sender.py`'s FR-14), which needs only `gmail.send`, so both `config/police/game.toml` and `config/thief/game.toml` were switched `draft` -> `send` for the rehearsal (recipient still the owner's own address, not the binding league address, so `league.counted` stayed `false`/`"friendly"` - nothing armed). Re-ran `scripts/m7_report_demo.py`: gatekeeper log `status: sent`; a real email landed in the inbox with the canonical JSON as both body and attachment; owner confirmed receipt and its `mutual_agreement.sha256` (`81861ae2...`) was independently diffed byte-for-byte against the `results/result_*.json` written to disk - identical, confirming rule #34 | P0 | team | ✔ |
 | 9.2 | **Identity** | P0 | team | ☐ |
 | 9.2.1 | Choose the 8-character team code (no spaces) with partner | P0 | team | ☐ |
 | 9.2.2 | Set group_name in both TOMLs; set real repo URLs | P0 | team | ☐ |

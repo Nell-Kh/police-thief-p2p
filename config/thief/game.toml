@@ -41,4 +41,4 @@ step_deadline_seconds = 30
 
 [email]
 recipient = "yanalserhan3@gmail.com"
-mode = "draft"
+mode = "send"
