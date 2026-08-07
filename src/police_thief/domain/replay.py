@@ -9,37 +9,15 @@ demands, not the simplified nonce|move sketch. One TAMPERED voids the match.
 
 from __future__ import annotations
 
-import ast
 from pathlib import Path
 from typing import Any
 
 from .audit import VERDICT_OK, VERDICT_TAMPERED
 from .crypto import verify
 from .logbook import Logbook
-from .sealing import revealed_position
+from .sealing import grid_size_of, parse_barriers, revealed_position
 
-Cell = tuple[int, int]
-
-
-def parse_barriers(state: str) -> list[Cell]:
-    """The barrier list out of a sealed record's canonical state summary."""
-    marker = "barriers="
-    index = state.find(marker)
-    if index < 0:
-        return []
-    try:
-        cells = ast.literal_eval(state[index + len(marker):])
-        return [(int(row), int(col)) for row, col in cells]
-    except (ValueError, SyntaxError, TypeError):
-        return []
-
-
-def grid_size_of(state: str) -> int:
-    """The board side out of a state summary like ``grid=7x7;...``."""
-    try:
-        return int(state.split("grid=", 1)[1].split("x", 1)[0])
-    except (IndexError, ValueError):
-        return 0
+__all__ = ["ReplaySession", "grid_size_of", "parse_barriers"]
 
 
 class ReplaySession:

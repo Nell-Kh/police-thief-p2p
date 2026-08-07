@@ -1,12 +1,18 @@
 """Assembling and dispatching the report email - draft or send, never spam.
 
 Chapter 9.3.3's iron rules, in code: the report is a machine-readable JSON
-*attachment* (a plaintext report is rejected and the round's points are
-lost), the recipient comes from configuration, and an HTTP 429 from Google
-is never answered with a blind retry - the send is surrendered to the
+report (a plaintext report is rejected and the round's points are lost),
+the recipient comes from configuration, and an HTTP 429 from Google is
+never answered with a blind retry - the send is surrendered to the
 Gatekeeper's queue and waits for the next window. ``draft`` mode exercises
 the whole pipeline while parking the message in Drafts, which is how the
 system is rehearsed without mailing the lecturer.
+
+Kit SPEC section 2 goes further than an attachment alone (rule #34 taken
+literally): the email BODY carries the same compact canonical bytes as the
+attachment, never a human-written note. Two conformant readers - one that
+parses the body, one that opens the attachment - must see byte-identical
+report content either way.
 """
 
 from __future__ import annotations
@@ -29,20 +35,21 @@ class RateLimitedError(RuntimeError):
 
 
 def build_report_email(
-    to_address: str, subject: str, body: str, attachment_name: str, payload: dict[str, Any]
+    to_address: str, subject: str, attachment_name: str, payload: dict[str, Any]
 ) -> dict[str, str]:
-    """A Gmail API message: short human note plus the JSON report attached.
+    """A Gmail API message: canonical JSON bytes as BOTH the body and the attachment.
 
-    The attachment bytes are canonical JSON, so the mailed report hashes
-    identically to the lifecycle file written to disk.
+    The same canonical bytes back the body, the attachment, and the lifecycle
+    file written to disk (``naming.write_lifecycle_file``) - one preimage,
+    never three chances for a human note to drift from the machine-readable
+    report (kit SPEC section 2; rule #34).
     """
+    body = canonical_json(payload)
     message = MIMEMultipart()
     message["to"] = to_address
     message["subject"] = subject
     message.attach(MIMEText(body))
-    attachment = MIMEApplication(
-        canonical_json(payload).encode("utf-8"), _subtype="json", name=attachment_name
-    )
+    attachment = MIMEApplication(body.encode("utf-8"), _subtype="json", name=attachment_name)
     attachment["Content-Disposition"] = f'attachment; filename="{attachment_name}"'
     message.attach(attachment)
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
@@ -108,16 +115,14 @@ class GmailSender:
         self.mode = mode
         self._gatekeeper = gatekeeper
 
-    def send_report(
-        self, subject: str, body: str, attachment_name: str, payload: dict[str, Any]
-    ) -> str:
+    def send_report(self, subject: str, attachment_name: str, payload: dict[str, Any]) -> str:
         """Build the report email and push it through the gates.
 
         Returns:
             The Gatekeeper status (``sent``/``queued``/``locked``), or
             ``sent`` when no Gatekeeper is wired (tests only).
         """
-        message = build_report_email(self.recipient, subject, body, attachment_name, payload)
+        message = build_report_email(self.recipient, subject, attachment_name, payload)
         if self._gatekeeper is None:
             self._dispatch(message)
             return "sent"

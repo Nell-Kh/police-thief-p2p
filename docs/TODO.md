@@ -384,14 +384,15 @@ with a meaningful message.
 | 8.13.1 | Thief final: claim_response {claim:[own cell], caught:true} | P0 | team | ✔ |
 | 8.13.2 | Zero-step final exemption in step law and dedupe | P0 | team | ✔ |
 | 8.13.3 | Cop side: answer vs concession distinction; legacy win_claim tolerated | P0 | team | ✔ |
-| 8.13.4 | Deferred to report alignment: audit-side concession corroboration (kit 3.1) | P0 | team | ☐ |
-| 8.14 | **Report alignment (kit 6)** | P0 | team | ☐ |
-| 8.14.1 | Consensus signature: spaced serialization, sign-then-insert Hebrew key | P0 | team | ☐ |
-| 8.14.2 | mutual_agreement trimmed scope (game_id, aggregate, trimmed sub_games) | P0 | team | ☐ |
-| 8.14.3 | Tie +2 added into total_score; diversity +10 never baked into totals | P0 | team | ☐ |
-| 8.14.4 | League fields: games_played_including_this map with legal nulls; first_meeting; diversity flags | P0 | team | ☐ |
-| 8.14.5 | Email = canonical bytes as body AND same file attached; recipient-gated arming | P0 | team | ☐ |
-| 8.14.6 | Cross-check against kit examples/pairing-artifacts result file | P0 | team | ☐ |
+| 8.13.4 | Deferred to report alignment: audit-side concession corroboration (kit 3.1) | P0 | team | ✔ |
+| 8.14 | **Report alignment (kit 6)** | P0 | team | ✔ |
+| 8.14.1 | Consensus signature: spaced serialization, sign-then-insert Hebrew key | P0 | team | ✔ |
+| 8.14.2 | mutual_agreement trimmed scope (game_id, aggregate, trimmed sub_games) | P0 | team | ✔ |
+| 8.14.3 | Tie +2 added into total_score; diversity +10 never baked into totals | P0 | team | ✔ |
+| 8.14.4 | League fields: games_played_including_this map with legal nulls; first_meeting; diversity flags | P0 | team | ✔ |
+| 8.14.5 | Email = canonical bytes as body AND same file attached; recipient-gated arming | P0 | team | ✔ |
+| 8.14.6 | Cross-check against kit examples/pairing-artifacts result file | P0 | team | ✔ |
+| 8.14.7 | Audit-side rule-47 concession corroboration: re-derive is_trapped from the last turn's board, closing 8.13.4 | P0 | team | ✔ |
 | 8.15 | **Sparring series (kit)** | P0 | team | ☐ |
 | 8.15.1 | Run kit verify_vectors.py locally on the Mac | P0 | team | ☐ |
 | 8.15.2 | python -m sparring.cli selfplay: full six-sub-game series | P0 | team | ☐ |
@@ -542,9 +543,11 @@ with a meaningful message.
 |---|---|---|---|---|
 | 10.1 | Maintain `integration/test_blind_strategy.py` (7 tests) green under every refactor | P0 | team | ✔ |
 | 10.2 | Maintain `integration/test_inference_loop.py` (4 tests) green under every refactor | P0 | team | ✔ |
+| 10.2b | Maintain `integration/test_determinism.py` (2 tests) green under every refactor | P0 | team | ✔ |
 | 10.3 | Maintain `integration/test_local_game.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.4 | Maintain `integration/test_two_peers.py` (7 tests) green under every refactor | P0 | team | ✔ |
-| 10.5 | Maintain `interop/test_kit_vectors.py` (13 tests) green under every refactor | P0 | team | ✔ |
+| 10.5 | Maintain `interop/test_kit_vectors.py` (11 tests) green under every refactor | P0 | team | ✔ |
+| 10.5b | Maintain `interop/test_kit_delivery.py` (3 tests) green under every refactor | P0 | team | ✔ |
 | 10.6 | Maintain `unit/test_constants.py` (15 tests) green under every refactor | P0 | team | ✔ |
 | 10.7 | Maintain `unit/test_domain/test_belief.py` (17 tests) green under every refactor | P0 | team | ✔ |
 | 10.8 | Maintain `unit/test_domain/test_board.py` (18 tests) green under every refactor | P0 | team | ✔ |
@@ -553,7 +556,7 @@ with a meaningful message.
 | 10.11 | Maintain `unit/test_domain/test_engine.py` (18 tests) green under every refactor | P0 | team | ✔ |
 | 10.12 | Maintain `unit/test_domain/test_enhanced_brains.py` (9 tests) green under every refactor | P0 | team | ✔ |
 | 10.13 | Maintain `unit/test_domain/test_hybrid_brain.py` (6 tests) green under every refactor | P0 | team | ✔ |
-| 10.14 | Maintain `unit/test_domain/test_logbook_audit.py` (10 tests) green under every refactor | P0 | team | ✔ |
+| 10.14 | Maintain `unit/test_domain/test_logbook_audit.py` (15 tests) green under every refactor | P0 | team | ✔ |
 | 10.15 | Maintain `unit/test_domain/test_negotiation.py` (10 tests) green under every refactor | P0 | team | ✔ |
 | 10.16 | Maintain `unit/test_domain/test_pathfind.py` (16 tests) green under every refactor | P0 | team | ✔ |
 | 10.17 | Maintain `unit/test_domain/test_region_brain.py` (10 tests) green under every refactor | P0 | team | ✔ |
@@ -567,8 +570,8 @@ with a meaningful message.
 | 10.25 | Maintain `unit/test_domain/test_turnmsg.py` (13 tests) green under every refactor | P0 | team | ✔ |
 | 10.26 | Maintain `unit/test_domain/test_wall_and_evade.py` (11 tests) green under every refactor | P0 | team | ✔ |
 | 10.27 | Maintain `unit/test_infra/test_email_oauth.py` (5 tests) green under every refactor | P0 | team | ✔ |
-| 10.28 | Maintain `unit/test_infra/test_email_reports.py` (6 tests) green under every refactor | P0 | team | ✔ |
-| 10.29 | Maintain `unit/test_infra/test_email_sender.py` (8 tests) green under every refactor | P0 | team | ✔ |
+| 10.28 | Maintain `unit/test_infra/test_email_reports.py` (12 tests) green under every refactor | P0 | team | ✔ |
+| 10.29 | Maintain `unit/test_infra/test_email_sender.py` (10 tests) green under every refactor | P0 | team | ✔ |
 | 10.30 | Maintain `unit/test_infra/test_http_transport.py` (11 tests) green under every refactor | P0 | team | ✔ |
 | 10.31 | Maintain `unit/test_infra/test_llm.py` (16 tests) green under every refactor | P0 | team | ✔ |
 | 10.32 | Maintain `unit/test_infra/test_llm_providers.py` (10 tests) green under every refactor | P0 | team | ✔ |
@@ -596,6 +599,13 @@ with a meaningful message.
 - `tests/unit/test_services/test_concession.py`: +2 (`test_the_police_accepts_the_new_kit_shape_concession`, `test_a_claim_response_from_the_police_is_a_violation`)
 - `tests/unit/test_services/test_inbound.py`: +2 (`test_a_concession_records_the_final_commit_without_overwriting`, `test_a_same_step_survival_claim_with_a_new_commit_is_refused`)
 - `tests/unit/test_services/test_deadline.py`: +1 (`test_tolerated_traffic_never_renews_the_deadline`)
+
+## Test Accounting (verification pass 8.18 + report alignment 8.14, from 611 to 621)
+- `tests/interop/test_kit_vectors.py` split into `test_kit_vectors.py` + new `test_kit_delivery.py` (150-line law); same 19 tests, no net change.
+- `tests/integration/test_determinism.py`: +2, new file (`test_two_full_matches_from_the_same_start_reach_the_same_trajectory`, `test_replaying_the_same_log_twice_is_byte_identical`)
+- `tests/unit/test_infra/test_email_reports.py`: +2 (`test_a_counted_claim_arms_when_addressed_to_the_binding_league_address`, `test_a_counted_claim_disarms_when_the_recipient_is_not_the_binding_address`)
+- `tests/unit/test_infra/test_email_sender.py`: +1 (`test_the_email_body_carries_the_same_canonical_bytes_as_the_attachment`)
+- `tests/unit/test_domain/test_logbook_audit.py`: +5 (`test_a_true_rule_47_concession_corroborates_and_passes`, `test_a_false_rule_47_concession_is_caught_by_the_audit`, `test_verify_concession_ignores_non_rule47_reasons`, `test_verify_concession_flags_a_rule47_claim_with_no_prior_turn`, `test_verify_concession_flags_an_unreadable_last_turn`)
 
 ## Milestones
 

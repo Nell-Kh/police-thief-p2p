@@ -88,6 +88,7 @@ def main() -> None:
     repos = dict(config.private("game").get("repos", {}))
     links = links_block(game_id, github={us: repos, OPPONENT: {}})
     now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
+    recipient = str(config.private_value("email", "recipient", ""))
     groups = [
         group_block(
             group_id=us, group_name=str(config.private_value("game", "group_name", us)),
@@ -106,7 +107,7 @@ def main() -> None:
     book.close({"type": outcome.event})
     declaration = declaration_payload(
         game_uid=game_uid, game_id=game_id, links=links, timezone="Asia/Jerusalem",
-        started_at=now, num_sub_games=1, groups=groups, counted=False,
+        started_at=now, num_sub_games=1, groups=groups, counted=False, recipient=recipient,
         max_tokens_per_game=config.contract.network.token_budget_per_series,
     )
     winner = us if outcome.event == "capture" else OPPONENT
@@ -124,14 +125,15 @@ def main() -> None:
         game_uid=game_uid, game_id=game_id, links=links, timezone="Asia/Jerusalem",
         group_ids=[us, OPPONENT], sub_games=rows, tie_score=config.contract.scoring.tie_score,
         games_played={us: 0, OPPONENT: None}, first_meeting=True, counted=False,
+        recipient=recipient,
     )
     log = log_payload(game_uid, game_id, 1, links, counted=False, records=book.records,
                       summary={"sub_game_number": 1, "result": outcome.event,
-                               "steps": state.step})
+                               "steps": state.step}, recipient=recipient)
     for name, payload in [
         (declaration_file_name(game_id), declaration),
         (config_file_name(game_id, 1), config_payload(game_uid, game_id, 1, terms, links,
-                                                      counted=False)),
+                                                      recipient, counted=False)),
         (f"log_{game_id}_g01.json", log),
         (result_file_name(game_id), result),
     ]:
@@ -140,7 +142,6 @@ def main() -> None:
     sender = configured_sender(config, real_or_stub_service())
     status = sender.send_report(
         subject=f"Police-Thief result {game_id}",
-        body="Automated game report attached as machine-readable JSON.",
         attachment_name=result_file_name(game_id), payload=result)
     print(f"report -> {sender.recipient} [{sender.mode}]: {status}")
     print(f"gatekeeper log: {sender._gatekeeper.log}")  # noqa: SLF001 - demo introspection

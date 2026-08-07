@@ -15,8 +15,10 @@ from typing import Any
 
 from ..constants import MOVE_DELTAS
 from ..shared.schema import GameContract
+from .board import Board, BoardError
 from .crypto import audit_records
-from .sealing import revealed_move, revealed_position
+from .rules import is_trapped
+from .sealing import grid_size_of, parse_barriers, revealed_move, revealed_position
 
 VERDICT_OK = "Verified OK"
 VERDICT_TAMPERED = "TAMPERED"
@@ -93,6 +95,49 @@ def verify_trajectory(
     return violations
 
 
+def _last_turn_payload(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The most recent revealed turn, or ``None`` if the log has no turn at all."""
+    turns = _turn_payloads(records)
+    return turns[-1] if turns else None
+
+
+def verify_concession(records: list[dict[str, Any]]) -> list[str]:
+    """Corroborate a rule-47 concession against the trajectory it followed.
+
+    A concession is a *claim*, not a fact - kit 3.1's zero-step final message
+    lets a thief announce its own capture, but nothing before this check ever
+    verified the announcement was true. For the "boxed in (rule 47)" reason,
+    the last revealed turn's own position and barrier set are re-fed through
+    the same :func:`is_trapped` the engine uses live: if a legal step still
+    existed, the concession was premature or false, and the audit must say so
+    rather than take the sealed claim at its word. Other concession reasons
+    (a trapping barrier, a capture claim) are already covered by the cop's own
+    ordinary turn records, which declare the winning action publicly.
+    """
+    concessions = [
+        record.get("payload", {})
+        for record in records
+        if record.get("payload", {}).get("type") == "concession"
+    ]
+    if not concessions:
+        return []
+    reason = str(concessions[-1].get("result", {}).get("how", ""))
+    if reason != "boxed in (rule 47)":
+        return []
+    last_turn = _last_turn_payload(records)
+    if last_turn is None:
+        return ["concession claims rule-47 but no prior turn establishes a position"]
+    state = str(last_turn.get("state", ""))
+    try:
+        board = Board(grid_size_of(state), parse_barriers(state))
+        position = revealed_position(last_turn)
+    except (KeyError, ValueError, TypeError, BoardError):
+        return ["concession claims rule-47 but the last turn's board/position is unreadable"]
+    if not is_trapped(board, position):
+        return ["concession claims rule-47 (boxed in) but a legal move still existed"]
+    return []
+
+
 def audit_disclosure(
     disclosure: dict[str, Any], contract: GameContract
 ) -> AuditReport:
@@ -105,6 +150,7 @@ def audit_disclosure(
     records = list(disclosure.get("records", []))
     hashes = audit_records(records)
     violations = verify_trajectory(records, contract, str(disclosure.get("sender", "")))
+    violations += verify_concession(records)
     return AuditReport(
         hashes_ok=bool(hashes["passed"]),
         physics_ok=not violations,

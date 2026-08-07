@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ...constants import AGENT_REPORT_ADDRESS
 from ...shared.config_io import sha256_of
 from .consensus import mutual_agreement_hash, mutual_agreement_scope, series_aggregate
 from .naming import config_file_name, declaration_file_name, result_file_name
@@ -31,9 +32,25 @@ def links_block(game_id: str, github: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def league_block(counted: bool) -> dict[str, Any]:
-    """Armed only for the one counted series; a warm-up must say so (rules 37-38)."""
-    return {"counted": counted, "reason": "counted" if counted else "friendly"}
+def _is_armed(counted: bool, recipient: str) -> bool:
+    """A counted claim only sticks when addressed to the binding league recipient.
+
+    Rule #51 sends every report to one address; rules #37/#38 forbid ever
+    lying about counted status. Gating arming on the recipient makes a
+    misconfigured ``[email] recipient`` fail safe: whatever the caller
+    believed, a report addressed anywhere else is never counted.
+    """
+    return counted and recipient == AGENT_REPORT_ADDRESS
+
+
+def league_block(counted: bool, recipient: str) -> dict[str, Any]:
+    """Armed only for a counted series actually addressed to the binding recipient."""
+    armed = _is_armed(counted, recipient)
+    if counted and not armed:
+        reason = "counted-blocked: recipient is not the binding league address"
+    else:
+        reason = "counted" if armed else "friendly"
+    return {"counted": armed, "reason": reason}
 
 
 def group_block(**fields: Any) -> dict[str, Any]:
@@ -48,28 +65,30 @@ def group_block(**fields: Any) -> dict[str, Any]:
     return block
 
 
-def _base(game_uid: str, game_id: str, links: dict[str, Any], counted: bool) -> dict[str, Any]:
+def _base(
+    game_uid: str, game_id: str, links: dict[str, Any], counted: bool, recipient: str
+) -> dict[str, Any]:
     """The joining fields every lifecycle artifact opens with."""
     return {
         "schema_version": SCHEMA_VERSION,
         "game_id": game_id,
         "game_uid": game_uid,
         "links": links,
-        "league": league_block(counted),
+        "league": league_block(counted, recipient),
     }
 
 
 def declaration_payload(
     *, game_uid: str, game_id: str, links: dict[str, Any], timezone: str, started_at: str,
     num_sub_games: int, max_tokens_per_game: int, groups: list[dict[str, Any]],
-    counted: bool = True,
+    recipient: str, counted: bool = True,
 ) -> dict[str, Any]:
     """The pre-game declaration: everything fixed across the series, frozen.
 
     No end time by design - nothing in it is known only after the games.
     """
     return {
-        **_base(game_uid, game_id, links, counted),
+        **_base(game_uid, game_id, links, counted, recipient),
         "declaration_type": "pre_game_declaration",
         "report_type": "declaration",
         "timezone": timezone,
@@ -82,11 +101,11 @@ def declaration_payload(
 
 def config_payload(
     game_uid: str, game_id: str, mini: int, terms: dict[str, Any],
-    links: dict[str, Any], counted: bool = True,
+    links: dict[str, Any], recipient: str, counted: bool = True,
 ) -> dict[str, Any]:
     """The locked terms, hash inline - carrying them lets an auditor RE-DERIVE the uid."""
     return {
-        **_base(game_uid, game_id, links, counted),
+        **_base(game_uid, game_id, links, counted, recipient),
         "sub_game_number": mini,
         "config_name": config_file_name(game_id, mini),
         "terms": terms,
@@ -96,11 +115,12 @@ def config_payload(
 
 def log_payload(
     game_uid: str, game_id: str, mini: int, links: dict[str, Any],
-    summary: dict[str, Any], records: list[dict[str, Any]], counted: bool = True,
+    summary: dict[str, Any], records: list[dict[str, Any]], recipient: str,
+    counted: bool = True,
 ) -> dict[str, Any]:
     """One sub-game's sealed history (payloads, nonces, commits) in the joined shape."""
     return {
-        **_base(game_uid, game_id, links, counted),
+        **_base(game_uid, game_id, links, counted, recipient),
         "sub_game_number": mini,
         "summary": summary,
         "records": records,
@@ -110,19 +130,22 @@ def log_payload(
 def result_payload(
     *, game_uid: str, game_id: str, links: dict[str, Any], timezone: str,
     group_ids: list[str], sub_games: list[dict[str, Any]], tie_score: int,
-    games_played: dict[str, int | None], first_meeting: bool, counted: bool = True,
+    games_played: dict[str, int | None], first_meeting: bool, recipient: str,
+    counted: bool = True,
 ) -> dict[str, Any]:
     """The final result report - the mandatory JSON mailed to the league address.
 
     Everything aggregate is DERIVED from the rows exactly once, so the consensus
     preimage and ``final_result`` can never drift apart. The +10 diversity award
-    stays a flag - it never enters the totals. ``games_played`` holds each
+    stays a flag - it never enters the totals, and never fires on a report whose
+    counted claim did not arm (recipient mismatch). ``games_played`` holds each
     group's own inclusive count; an opponent's untold count rides as ``None``.
     """
     aggregate = series_aggregate(sub_games, tie_score=tie_score)
     winner = aggregate["winner_group"]
+    armed = _is_armed(counted, recipient)
     return {
-        **_base(game_uid, game_id, links, counted),
+        **_base(game_uid, game_id, links, counted, recipient),
         "report_type": "final_game_result",
         "timezone": timezone,
         "groups": group_ids,
@@ -136,7 +159,7 @@ def result_payload(
             "games_played_including_this": games_played,
             "first_meeting_between_groups": first_meeting,
             "diversity_reward_applied": {
-                g: bool(counted and first_meeting and g == winner) for g in group_ids
+                g: bool(armed and first_meeting and g == winner) for g in group_ids
             },
         },
         "mutual_agreement": {

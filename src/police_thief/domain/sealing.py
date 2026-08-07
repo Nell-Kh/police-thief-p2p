@@ -9,6 +9,7 @@ change between games, but every game must record precisely what ran.
 
 from __future__ import annotations
 
+import ast
 from typing import Any
 
 from .board import Cell
@@ -23,6 +24,31 @@ def state_summary(grid_size: int, position: Cell, barriers: frozenset[Cell]) -> 
     """
     blocked = sorted(barriers)
     return f"grid={grid_size}x{grid_size};self={list(position)};barriers={[list(b) for b in blocked]}"
+
+
+def parse_barriers(state: str) -> list[Cell]:
+    """The barrier list out of a sealed record's canonical state summary.
+
+    Shared by the Replay Viewer and the mutual audit's concession check - both
+    need to reconstruct the board a state summary describes.
+    """
+    marker = "barriers="
+    index = state.find(marker)
+    if index < 0:
+        return []
+    try:
+        cells = ast.literal_eval(state[index + len(marker):])
+        return [(int(row), int(col)) for row, col in cells]
+    except (ValueError, SyntaxError, TypeError):
+        return []
+
+
+def grid_size_of(state: str) -> int:
+    """The board side out of a state summary like ``grid=7x7;...``."""
+    try:
+        return int(state.split("grid=", 1)[1].split("x", 1)[0])
+    except (IndexError, ValueError):
+        return 0
 
 
 def step0_record(

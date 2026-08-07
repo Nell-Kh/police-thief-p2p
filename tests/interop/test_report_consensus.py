@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from police_thief.constants import AGENT_REPORT_ADDRESS
 from police_thief.infra.email.consensus import (
     consensus_signature,
     mutual_agreement_hash,
@@ -79,7 +80,7 @@ def test_the_production_result_builder_reproduces_the_kit_example() -> None:
         sub_games=example["sub_games"], tie_score=tie_score,
         games_played=example["final_result"]["games_played_including_this"],
         first_meeting=example["final_result"]["first_meeting_between_groups"],
-        counted=True,
+        counted=True, recipient=AGENT_REPORT_ADDRESS,
     )
     for key in ("game_uid", "game_id", "report_type", "groups", "num_sub_games",
                 "sub_games", "final_result", "mutual_agreement", "schema_version"):

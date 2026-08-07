@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from police_thief.domain.audit import audit_disclosure, verify_trajectory
+from police_thief.domain.audit import audit_disclosure, verify_concession, verify_trajectory
 from police_thief.domain.logbook import Logbook
 from police_thief.domain.sealing import step0_record, turn_record
 from police_thief.shared.config import ConfigManager
@@ -123,3 +123,53 @@ def test_an_unreadable_record_fails_physics(contract) -> None:
     assert record
     violations = verify_trajectory(book.records, contract, "police")
     assert any("unreadable" in violation for violation in violations)
+
+
+def _boxed_in_book(*, actually_trapped: bool) -> Logbook:
+    """A thief log that stays at its signed start cell (3,3), optionally walled in."""
+    book = Logbook("g1", 1, "thief")
+    barriers = frozenset({(2, 3), (4, 3), (3, 2), (3, 4)}) if actually_trapped else frozenset()
+    book.append(
+        turn_record(
+            step=1, role="thief", grid_size=7, position=(3, 3), barriers=barriers,
+            move="STAY", intent="truth", hint="", tokens_step=0, tokens_total=0,
+        )
+    )
+    book.append({"step": 1, "role": "thief", "type": "concession",
+                 "result": {"type": "capture", "winner": "police", "how": "boxed in (rule 47)"}})
+    return book
+
+
+def test_a_true_rule_47_concession_corroborates_and_passes(contract) -> None:
+    report = audit_disclosure(_boxed_in_book(actually_trapped=True).audit_payload(), contract)
+    assert report.hashes_ok
+    assert report.physics_ok
+    assert report.verdict == "Verified OK"
+
+
+def test_a_false_rule_47_concession_is_caught_by_the_audit(contract) -> None:
+    """A concession claiming 'boxed in' where a legal step still existed is a lie."""
+    report = audit_disclosure(_boxed_in_book(actually_trapped=False).audit_payload(), contract)
+    assert report.hashes_ok  # the hashes are perfectly clean - only physics catches this
+    assert not report.physics_ok
+    assert report.verdict == "TAMPERED"
+    assert any("boxed in" in violation for violation in report.violations)
+
+
+def test_verify_concession_ignores_non_rule47_reasons() -> None:
+    """A trapping-barrier or capture-claim win is already covered by the cop's own log."""
+    records = [{"payload": {"type": "concession", "result": {"how": "trapping barrier"}}}]
+    assert verify_concession(records) == []
+
+
+def test_verify_concession_flags_a_rule47_claim_with_no_prior_turn() -> None:
+    records = [{"payload": {"type": "concession", "result": {"how": "boxed in (rule 47)"}}}]
+    assert any("no prior turn" in v for v in verify_concession(records))
+
+
+def test_verify_concession_flags_an_unreadable_last_turn() -> None:
+    records = [
+        {"payload": {"type": "turn", "step": 1}},  # no position or state at all
+        {"payload": {"type": "concession", "result": {"how": "boxed in (rule 47)"}}},
+    ]
+    assert any("unreadable" in v for v in verify_concession(records))

@@ -21,6 +21,7 @@ from police_thief.infra.email.reports import (
 )
 from police_thief.shared.config_io import canonical_json, sha256_of
 
+RECIPIENT = AGENT_REPORT_ADDRESS
 A, B = "team-north", "team-south"
 GITHUB = {
     A: {"cop": "https://github.com/north/cop", "thief": "https://github.com/north/thief"},
@@ -55,6 +56,7 @@ def make_result(rows: list[dict], **overrides) -> dict:
         "game_uid": "uid-7", "game_id": "north-vs-south", "links": LINKS,
         "timezone": "Asia/Jerusalem", "group_ids": [A, B], "sub_games": rows,
         "tie_score": 2, "games_played": {A: 1, B: None}, "first_meeting": True,
+        "recipient": RECIPIENT,
     }
     kwargs.update(overrides)
     return result_payload(**kwargs)
@@ -70,7 +72,7 @@ def test_the_declaration_freezes_the_series_constants() -> None:
     record = declaration_payload(
         game_uid="uid-7", game_id="north-vs-south", links=LINKS, timezone="Asia/Jerusalem",
         started_at="2026-08-04T10:00:00+03:00", num_sub_games=6, max_tokens_per_game=200000,
-        groups=[make_group(A), make_group(B)],
+        groups=[make_group(A), make_group(B)], recipient=RECIPIENT,
     )
     assert record["declaration_type"] == "pre_game_declaration"
     assert record["groups"]["group_1"]["group_id"] == A
@@ -83,14 +85,14 @@ def test_a_friendly_declaration_rides_disarmed() -> None:
     record = declaration_payload(
         game_uid="u", game_id="g", links=LINKS, timezone="Asia/Jerusalem",
         started_at="t", num_sub_games=1, max_tokens_per_game=0,
-        groups=[make_group(A), make_group(B)], counted=False,
+        groups=[make_group(A), make_group(B)], counted=False, recipient=RECIPIENT,
     )
     assert record["league"] == {"counted": False, "reason": "friendly"}
 
 
 def test_the_config_file_lets_an_auditor_rederive_the_uid() -> None:
     terms = {"grid_size": 7, "num_barriers": 5}
-    record = config_payload("uid-7", "north-vs-south", 3, terms, LINKS)
+    record = config_payload("uid-7", "north-vs-south", 3, terms, LINKS, RECIPIENT)
     assert record["config_sha256"] == sha256_of(terms)
     assert record["terms"] == terms  # the preimage itself rides along
     assert record["sub_game_number"] == 3
@@ -125,6 +127,22 @@ def test_the_diversity_award_is_a_flag_and_never_enters_the_totals() -> None:
     assert friendly["diversity_reward_applied"] == {A: False, B: False}
 
 
+def test_a_counted_claim_arms_when_addressed_to_the_binding_league_address() -> None:
+    record = make_result([make_row(1, A, 20, 5)])
+    assert record["league"] == {"counted": True, "reason": "counted"}
+
+
+def test_a_counted_claim_disarms_when_the_recipient_is_not_the_binding_address() -> None:
+    rows = [make_row(1, A, 20, 5)]
+    record = make_result(rows, recipient="someone-else@example.com")
+    assert record["league"] == {
+        "counted": False,
+        "reason": "counted-blocked: recipient is not the binding league address",
+    }
+    # A disarmed claim never triggers the diversity award either - same guard.
+    assert record["final_result"]["diversity_reward_applied"] == {A: False, B: False}
+
+
 def test_file_names_derive_from_the_game_id() -> None:
     assert declaration_file_name("G7") == "declaration_G7.json"
     assert config_file_name("G7", 4) == "config_G7_g04.json"
@@ -132,7 +150,7 @@ def test_file_names_derive_from_the_game_id() -> None:
 
 
 def test_lifecycle_files_are_canonical_json_on_disk(tmp_path: Path) -> None:
-    record = config_payload("uid-7", "G7", 1, {"a": 1}, LINKS)
+    record = config_payload("uid-7", "G7", 1, {"a": 1}, LINKS, RECIPIENT)
     path = write_lifecycle_file(tmp_path / "results", config_file_name("G7", 1), record)
     text = path.read_text(encoding="utf-8")
     assert text == canonical_json(record)  # byte-identical to the mailed copy
