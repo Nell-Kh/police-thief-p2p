@@ -413,15 +413,24 @@ hand-edited output cells).
 
 ## 10. Screenshots
 
-*Owner-supplied at task 9.3 — captured from a real self-play match, embedded here before
-submission.*
+Captured from real self-play matches (task 9.3): `scripts/capture_live_gui.py` and
+`scripts/capture_replay_viewer.py` each play a genuine two-runtime match (the
+`tests/integration/test_two_peers.py` pattern) against the shipped `config/`, and
+screen-grab the actual Tk windows — not mocked or hand-drawn.
 
-- **Live GUI — belief heatmap.** `[screenshot pending: gui/live.py during a self-play match,
-  showing the belief-argmax "T?" marker, own position "C", and placed barriers — never the
-  opponent's true cell, per rule #8/#9]`
-- **Replay Viewer — Verified OK.** `[screenshot pending: gui/replay.py on a saved
-  log_<game_id>_g<NN>.json, stepping to the final step and showing the green "Verified OK"
-  stamp from the two-layer audit]`
+- **Live GUI — belief heatmap.**
+
+  ![Live GUI belief heatmap](docs/img/live_gui_belief_heatmap.png)
+
+  Own position "C", one placed barrier, the belief heatmap with its "T?" argmax marker, and
+  the turn banner — never the opponent's true cell, per rules #8/#9.
+
+- **Replay Viewer — Verified OK.**
+
+  ![Replay viewer Verified OK](docs/img/replay_verified_ok.png)
+
+  Stepped to the final turn of a saved `log_<game_id>_g<NN>.json`; the green "Verified OK"
+  stamp comes from `domain.replay`'s own re-verification of the sealed commit-reveal chain.
 
 ## 11. Cross-repo links
 
