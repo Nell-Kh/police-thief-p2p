@@ -32,3 +32,4 @@ results/*.tmp
 .idea/
 .vscode/
 results/*.json
+results/sparring_series/

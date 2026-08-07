@@ -1,0 +1,46 @@
+# Private per-peer configuration - POLICE (cop) side.
+# This file never crosses the network and is not signed.
+# When config/game.json exists, its values OVERRIDE any parallel key here
+# (a private file can never weaken a signed shared condition).
+version = "1.00"
+
+[game]
+group_name = "TEAM-TBD"
+group_id = "team-tbd"
+sub_game_number = 1
+members = ["id-TBD"]
+repos = { cop = "https://github.com/TBD/police-agent", thief = "https://github.com/TBD/thief-agent" }
+
+[network]
+my_port = 8801                                 # MY MCP server port (police)
+opponent_url = "http://127.0.0.1:8802/mcp"     # the only thing I know about the opponent
+turn_timeout_seconds = 180
+
+[strategy]
+# The competition brain (see notebooks/analysis.ipynb). Two proven choices:
+#  wall:WallPoliceBrain    - the guarantee: 1900/1900 vs everything, max 29/35 steps.
+#  hybrid:HybridPoliceBrain - hunt-first: ~12-step kills vs reference-style thieves
+#                             (1900/1900), but 1891/1900 vs an elite evader.
+# Default: the guarantee. Switch to hybrid against a known reference-fork opponent.
+police_class = "police_thief.domain.brain.wall:WallPoliceBrain"
+
+[deception]
+# The cop has no claim-feedback channel, so it never risks a directional
+# leak: vague hints give a scent-verifying thief nothing to work with.
+mode = "vague"
+tracked_gap = 2
+window = 3
+
+[trash_talk]
+# How the banter/deception text is produced. The MOVE is always pure Python.
+# claude_api = small cloud model (Haiku); automatic fallback to zero-token template.
+provider = "claude_api"
+every_n_steps = 3
+
+[llm]
+model = "claude-haiku"
+step_deadline_seconds = 30        # hard cap on LLM thinking per step
+
+[email]
+recipient = "yanalserhan3@gmail.com"
+mode = "draft"
