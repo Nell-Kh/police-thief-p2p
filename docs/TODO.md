@@ -527,8 +527,8 @@ with a meaningful message.
 | 9.2.1 | Choose the 8-character team code (no spaces) with partner | P0 | team | ☐ |
 | 9.2.2 | Set group_name in both TOMLs; set real repo URLs | P0 | team | ☐ |
 | 9.2.3 | Update step-0 group fields; re-run suite | P0 | team | ☐ |
-| 9.3 | **Screenshots** | P0 | team | ☐ |
-| 9.3.1 | Run live GUI during a self-play match; capture belief heatmap | P0 | team | ☐ |
+| 9.3 | **Screenshots** | P0 | team | ◐ |
+| 9.3.1 | `scripts/capture_live_gui.py`: plays a real two-runtime local match (`test_two_peers.py` pattern) against shipped `config/`, drives police's `LiveWindow` every turn, DPI-aware screen-grabs the real Tk window once belief committed to an argmax (step 5) — `docs/img/live_gui_belief_heatmap.png`: own position "C", one placed barrier, heatmap gradient, "T?" argmax, "LOCKED" banner, "step 5 \| barriers used 2" — never the thief's true cell (rules #8/#9) | P0 | team | ✔ |
 | 9.3.2 | Run replay viewer on a saved log; capture Verified OK stamp | P0 | team | ☐ |
 | 9.3.3 | Embed both into the README report section | P0 | team | ☐ |
 | 9.4 | **Friendlies** | P0 | team | ☐ |
