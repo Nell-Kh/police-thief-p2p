@@ -2331,6 +2331,7 @@ dependencies = [
     { name = "fastmcp" },
     { name = "google-api-python-client" },
     { name = "google-auth-oauthlib" },
+    { name = "tomli" },
 ]
 
 [package.dev-dependencies]
@@ -2351,6 +2352,7 @@ requires-dist = [
     { name = "fastmcp", specifier = ">=2.0" },
     { name = "google-api-python-client", specifier = ">=2.0" },
     { name = "google-auth-oauthlib", specifier = ">=1.0" },
+    { name = "tomli", specifier = ">=2.4.1" },
 ]
 provides-extras = ["dev"]
 

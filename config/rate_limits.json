@@ -17,7 +17,9 @@
         "retry_after_seconds": 5,
         "max_retries": 3,
         "queue_depth": 100,
-        "daily_quota": 100
+        "daily_quota": 100,
+        "dos_max_per_window": 12,
+        "dos_window_sec": 10.0
       },
       "anthropic": {
         "requests_per_minute": 30,

@@ -72,6 +72,8 @@ def configured_sender(
         requests_per_minute=int(limits["requests_per_minute"]),
         daily_quota=int(limits["daily_quota"]),
         queue_depth=int(limits["queue_depth"]),
+        dos_max_per_window=int(limits["dos_max_per_window"]),
+        dos_window_sec=float(limits["dos_window_sec"]),
     )
     return GmailSender(
         service,

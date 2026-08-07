@@ -44,6 +44,7 @@ def start_server(orchestrator: Orchestrator, port: int, host: str = "0.0.0.0") -
     server = build_server(orchestrator.inbound)
 
     def _serve() -> None:  # pragma: no cover - blocking network loop
+        """Block forever running the FastMCP HTTP transport."""
         server.run(transport="http", host=host, port=port, show_banner=False)
 
     thread = threading.Thread(target=_serve, name=f"mcp-server-{port}", daemon=True)

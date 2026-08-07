@@ -102,7 +102,8 @@ def test_configured_sender_reads_everything_from_config(tmp_path) -> None:
     limits = tmp_path / "rate_limits.json"
     limits.write_text(
         json.dumps({"rate_limits": {"services": {"gmail": {
-            "requests_per_minute": 30, "daily_quota": 100, "queue_depth": 10}}}}),
+            "requests_per_minute": 30, "daily_quota": 100, "queue_depth": 10,
+            "dos_max_per_window": 2, "dos_window_sec": 5.0}}}}),
         encoding="utf-8",
     )
     manager = SimpleNamespace(
@@ -112,6 +113,10 @@ def test_configured_sender_reads_everything_from_config(tmp_path) -> None:
     assert sender.recipient == "prof@example.com"
     assert sender.mode == "draft"
     assert sender.send_report("s", "b", "r.json", {}) == "sent"  # gates wired in
+    # The DOS window is the file's 2, not the class's old hardcoded default of
+    # 12 - a third send within the window must trip the lock, not sail through.
+    sender.send_report("s", "b", "r.json", {})
+    assert sender.send_report("s", "b", "r.json", {}) == "locked"
 
 
 def test_every_send_passes_the_gatekeeper() -> None:

@@ -88,6 +88,7 @@ def step_away(board: Board, start: Cell, threat: Cell) -> str:
     field = distance_field(board, threat)
 
     def score(cell: Cell) -> int:
+        """Distance to maximize; unreachable cells outrank every reachable one."""
         value = field.get(cell, UNREACHABLE)
         return board.size * board.size if value == UNREACHABLE else value
 

@@ -87,7 +87,7 @@ def main() -> None:
     game_id, game_uid = derive_game_ids(terms, us, OPPONENT)
     repos = dict(config.private("game").get("repos", {}))
     links = links_block(game_id, github={us: repos, OPPONENT: {}})
-    now = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
     groups = [
         group_block(
             group_id=us, group_name=str(config.private_value("game", "group_name", us)),
@@ -142,7 +142,7 @@ def main() -> None:
         subject=f"Police-Thief result {game_id}",
         body="Automated game report attached as machine-readable JSON.",
         attachment_name=result_file_name(game_id), payload=result)
-    print(f"report → {sender.recipient} [{sender.mode}]: {status}")
+    print(f"report -> {sender.recipient} [{sender.mode}]: {status}")
     print(f"gatekeeper log: {sender._gatekeeper.log}")  # noqa: SLF001 - demo introspection
 
 

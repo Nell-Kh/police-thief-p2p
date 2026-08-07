@@ -102,14 +102,147 @@ binding parameter table of Appendix ו — see the table at the end.
 | Requirement | Where enforced | Evidence |
 |---|---|---|
 | Python managed with `uv` only (no pip/venv) | `pyproject.toml` + `uv.lock` | repo root |
-| Every code file ≤ 150 lines | audited every commit | largest file: `orchestrator.py`, 131 code lines |
-| Test coverage ≥ 85% | `pyproject.toml` `fail_under=85` — the suite FAILS below it | current: **97.9%**, 568 tests |
+| Every code file ≤ 150 lines | audited every commit (8.18.4/8.18.5, code-lines = non-blank, non-comment, non-docstring) | largest src file: `services/turn_taking.py`, 112 code lines; largest test file: `test_kit_vectors.py`/`test_kit_delivery.py`, ~85 each |
+| Test coverage ≥ 85% | `pyproject.toml` `fail_under=85` — the suite FAILS below it | current: **97.8%**, 613 tests |
 | `ruff check` clean (E,F,W,I,N,UP,B,C4,SIM; line 100) | `pyproject.toml` `[tool.ruff]` | `All checks passed!` |
 | Docstring on every module, class and function | ruff D-adjacent review + convention | all modules |
-| No hardcoded values — everything from configuration | `config/game.json` + per-peer TOMLs; `test_contract_values.py` pins them | ✔ |
+| No hardcoded values — everything from configuration | `config/game.json` + per-peer TOMLs; `test_contract_values.py` pins them | ✔ (8.18 sweep found and fixed one gap: the Gatekeeper's DOS-window defaults were not wired from `config/rate_limits.json` — now required constructor args, sourced in `configured_sender`, regression-tested) |
 | No secrets in the repository | `.gitignore` + rule #39/#40 | ✔ |
 | PRD → PLAN → TODO before code; prompts book maintained | `docs/PRD*.md`, `PLAN.md`, `TODO.md`, `PROMPTS.md` (16 entries) | ✔ |
 | Tests never depend on external services | Gmail/Anthropic/Google all mocked; fuzz battery is offline | `test_email_*`, `test_llm*` | 
+
+## Guidelines ch. 17 final checklist (v3.00) — walked item by item (task 8.18.2)
+
+The guidelines document's own closing chapter (17, "רשימת בדיקה סופית" / final checklist,
+`instruction/software_submission_guidelines-V3.pdf` p.30) is the actual pre-submission
+checklist body — six sub-sections, walked here against the repo as it stands after the 8.18
+verification pass, not against a claim.
+
+**17.1 Mandatory structure & documentation**
+- ✔ Root `README.md` comprehensive project-guide level (rewritten as the academic report, 8.17).
+- ✔ `docs/` carries `PRD.md`, `PLAN.md`, `TODO.md`.
+- ✔ A dedicated PRD per major algorithm/component — seven `docs/PRD_*.md` files.
+- ✔ Architecture documented with clear diagrams — `docs/PLAN.md` §1 (C4 context/container/component/code).
+- ✔ Prompts book kept current — `docs/PROMPTS.md`, 17 entries.
+
+**17.2 Architecture & code**
+- ✔ SDK architecture — all game-state mutation passes through `sdk/sdk.py::SimulationSdk`; GUI
+  modules (`gui/*.py`) contain only rendering (verified during this pass: no domain logic there).
+- ✔ OOP, no duplication — real inheritance chains, not copy-paste: `BrainBase → BlindPoliceBrain →
+  EnhancedPoliceBrain`; `BlindPoliceBrain → RegionPoliceBrain → WallPoliceBrain → HybridPoliceBrain`;
+  `BlindThiefBrain → EnhancedThiefBrain` / `EvadeThiefBrain`.
+- ◐ API Gatekeeper for every external call — true for Gmail (`shared/gatekeeper.py` behind every
+  send); the Anthropic/LLM path uses a *different*, equally real protection chain instead
+  (`fallback(throttle(budget_guard(paid), template))`, PRD_scent_language.md FR-13–15) rather than
+  the literal `Gatekeeper` class. This is a deliberate, documented split (ADR-3: a token-budget
+  guard is a different shape of limit than a Gmail daily-quota/DOS gate), not an oversight — but
+  it does mean `config/rate_limits.json`'s `anthropic` and `default` service blocks are currently
+  **dead configuration**, read by no code path. Flagged honestly rather than silently left; not
+  fixed in this pass because rewiring the LLM chain onto `Gatekeeper` is a design change, not a
+  verification fix, and the existing chain already meets the "no call bypasses a limit" intent.
+- ✔ Config boundaries / overflow queueing — `Gatekeeper`'s FIFO queue + `backpressure` property.
+- ✔ Every file ≤ 150 code lines, docstrings on every module/class/function — re-swept this pass
+  (8.18.4–8.18.6): 0 files over the limit, 0 missing docstrings (12 gaps found and fixed).
+- ✔ Consistent style/naming — `ruff` (E,F,W,I,N,UP,B,C4,SIM) clean across `src/`, `tests/`, and
+  `notebooks/analysis.ipynb` (26 pre-existing lint errors found and fixed this pass, see below).
+
+**17.3 Tests & quality**
+- ✔ TDD — tests committed alongside every module (`docs/PROMPTS.md` entries; Phase 10 inventory).
+- ✔ Coverage ≥ 85% — 97.8% measured, gate enforced by `pyproject.toml fail_under=85`.
+- ✔ Ruff — zero errors after this pass (see 8.18.1 below; was not actually zero before it).
+- ✔ Edge cases documented — hostile-wire fuzz battery (`test_hostile_wire.py`, 14 tests),
+  interop delivery-contract decision table (`test_kit_delivery.py`).
+- ✔ Automated test reports — `pytest --cov-report=term-missing`, run on every invocation.
+
+**17.4 Configuration & security**
+- ✔ Config separated from code, versioned — `config/game.json` `schema_version`, TOML `version`.
+- ✔ `.env-example` documents every variable with no secret value.
+- ✔ No API keys/secrets in code — confirmed by this pass's secrets sweep (8.18.8: clean history,
+  clean working tree, clean `.gitignore` coverage).
+- ✔ `.gitignore` current — covers `.env`, `credentials.json`, `token.json`, `*.pem`, `*.key`.
+- ✔ `uv` as sole package manager; `pyproject.toml` + `uv.lock` present and `uv sync` reproducible
+  (re-verified this pass).
+
+**17.5 Research & visualization**
+- ✔ Parameter-sweep experiments with a results notebook and real graphs —
+  `notebooks/analysis.ipynb`, 13 sections, regenerated from source this pass (8.18.11).
+- ✔ Performance/accessibility analysis with graphs — capture-rate heatmaps, histograms, the
+  exhaustive-validation tables reproduced in `README.md` §9.
+- ✔ Token-usage analysis and optimization strategy — notebook §12, fallback ladder documented.
+
+**17.6 Extensibility & tokens**
+- ✔ Documented extension points — `[strategy]`/`[trash_talk]` TOML keys, `BrainBase`/`HintProvider`
+  plug points named explicitly in the relevant PRDs.
+- ✔ Clean Python package organization — `src/police_thief/{domain,services,infra,shared,gui,sdk}`.
+- ✔ Parallel work with thread safety — `services/watchdog.py`'s background thread + `peer_boot.py`'s
+  daemon server thread, both reviewed for shared-state hazards (no shared mutable state crossed).
+- ✔ Building-block design — brains, providers, and transports are all swappable via config, not code.
+- — ISO/IEC 25010 is referenced as a quality-model lens in the guidelines, not a literal gate this
+  project runs a tool against; the closest operational proxy is the coverage/lint/line-count triad
+  already enforced.
+- ✔ Organized Git history — 39 commits, incrementally scoped, meaningful messages (see `git log`).
+
+## Verification-pass findings (task 8.18, this sweep)
+
+Concrete issues found and fixed while actually running the checks, not merely re-stating that
+they should pass:
+
+1. **`ruff check .` was not actually clean.** 26 lint errors existed inside
+   `notebooks/analysis.ipynb` (ruff lints notebooks natively) — unsorted/multi-statement imports,
+   semicolon-joined plotting lines, a missing `zip(..., strict=True)`, one unused import. Fixed at
+   the source (`scripts/build_notebook.py`, which authors the notebook as code) and the notebook
+   regenerated from scratch; `ruff check .` now reports **All checks passed!** across `src/`,
+   `tests/`, and `notebooks/`.
+2. **One test file exceeded the 150-code-line law**: `tests/interop/test_kit_vectors.py` was 200
+   code lines. Split along its natural seam into `test_kit_vectors.py` (static byte-exact vector
+   conformance, 83 code lines) and a new `test_kit_delivery.py` (the at-least-once delivery
+   decision table, 85 code lines) — same 19 tests, both files now well inside the limit.
+3. **Twelve missing docstrings** on private/nested functions across `shared/contract.py`,
+   `domain/brain/pathfind.py`, `gui/banner.py`, `gui/replay.py`, `services/peer_boot.py` — added.
+4. **A real hardcoded-value gap**: `Gatekeeper`'s DOS-window defaults (`dos_max_per_window=12`,
+   `dos_window_sec=10.0`) were class-level defaults never overridden by `configured_sender`, so the
+   live Gmail pipeline ran on values invisible to `config/rate_limits.json` despite the module's
+   own docstring claiming "all limits come from configuration." Fixed: the two fields moved into
+   `config/rate_limits.json`'s `gmail` block, `configured_sender` now reads them, and the
+   `Gatekeeper` constructor no longer accepts silent defaults for either — a future omission at a
+   call site fails loudly instead of running on an invisible number. Regression test strengthened
+   (`test_configured_sender_reads_everything_from_config` now proves the wired value, not just
+   that *a* value was wired).
+5. **A live Python-version bug in `scripts/m7_report_demo.py`**: `datetime.datetime.now(datetime.UTC)`
+   uses `datetime.UTC`, added in Python 3.11; the project targets `>=3.10` (`pyproject.toml`,
+   `ruff target-version`) and this environment runs 3.10.20. The demo crashed immediately on any
+   3.10 interpreter. Fixed to `datetime.timezone.utc`, matching the pattern already used correctly
+   in `domain/turnmsg.py`.
+6. **A real-world hazard found while re-running the demo**: with a `credentials.json` present at
+   the repo root, `scripts/m7_report_demo.py::real_or_stub_service` correctly takes its "real
+   Gmail" branch (by design) instead of the stub — which meant re-running the demo during this
+   *code* verification pass would have started a live Google OAuth flow. That process was killed
+   before completing any network exchange; no email was sent or drafted, no OAuth consent was
+   granted. This is a reminder for whoever runs the demo next: without deliberately wanting to
+   exercise the real Gmail path (task 9.1, OAuth day), run it from a directory with no
+   `credentials.json` on the lookup path, or delete/rename it locally first.
+7. **Added a determinism-sweep regression** (`tests/integration/test_determinism.py`,
+   task 8.18.9): two independent full mini-games from the same start with the same brains reach a
+   byte-identical trajectory (move log, final positions, barrier count, outcome), and replaying
+   one fixed sealed log through two independent `ReplaySession` objects produces byte-identical
+   scenes and verdicts. Neither property was previously pinned by a test.
+
+Suite grew from 611 to **613** tests (2 new determinism tests; the interop split kept the same
+19 tests, just repartitioned across two files). Full suite green, 97.8% coverage, `ruff check .`
+clean, notebook regenerated and re-diffed against its own prior committed run (8.18.11) with no
+change in any numeric result — only the lint-driven source formatting differs.
+
+**Scope note on 8.18.10**: only our own vendored-vector conformance suite
+(`tests/interop/test_kit_vectors.py` + `test_kit_delivery.py`, 19 tests) was re-run here — the
+kit's own `verify_vectors.py` script lives in the external `copthief-league-protocol` repo, which
+is not vendored into this codebase (only its license and JSON vectors are, per 8.10.2). Running
+that script against its own vectors independently is tracked separately as the still-open 8.15.1.
+
+**Scope note on 8.18.12**: a full clean-machine fresh-clone build was not performed (would require
+committing and cloning to a separate location, out of scope for an in-place verification pass);
+`uv sync` reproducibility was re-confirmed in place, and both demo scripts
+(`scripts/m7_report_demo.py`, `scripts/build_notebook.py`) were run end-to-end successfully. A
+literal fresh-clone rehearsal is best done once at the actual pre-submission checkpoint (8.19).
 
 ## Binding parameter values (Appendix ו → `config/game.json`)
 

@@ -51,10 +51,12 @@ class ReplayWindow:
         self._draw()
 
     def _back(self) -> None:
+        """Step to the previous recorded turn and redraw."""
         self.session.back()
         self._draw()
 
     def _forward(self) -> None:
+        """Step to the next recorded turn and redraw."""
         self.session.forward()
         self._draw()
 

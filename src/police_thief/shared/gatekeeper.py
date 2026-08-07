@@ -32,8 +32,8 @@ class Gatekeeper:
         requests_per_minute: int,
         daily_quota: int,
         queue_depth: int,
-        dos_max_per_window: int = 12,
-        dos_window_sec: float = 10.0,
+        dos_max_per_window: int,
+        dos_window_sec: float,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         """Assemble the three gates from configuration values."""

@@ -49,5 +49,6 @@ class TurnBanner:
         return self.state == STATE_YOUR_TURN
 
     def _set(self, state: str) -> None:
+        """Apply a state to both the tracked value and the rendered label."""
         self.state = state
         self.label.configure(text=state, bg=_COLOURS[state])

@@ -25,6 +25,7 @@ from .schema import (
 
 
 def _board(contract: dict[str, Any]) -> BoardConfig:
+    """Build the board/agents section (grid size, start cells, axis convention)."""
     name = "board_and_agents"
     section = _section(contract, name)
     return BoardConfig(
@@ -38,6 +39,7 @@ def _board(contract: dict[str, Any]) -> BoardConfig:
 
 
 def _world(contract: dict[str, Any]) -> WorldConfig:
+    """Build the world section (arena name, hint word cap)."""
     name = "world"
     section = _section(contract, name)
     return WorldConfig(
@@ -47,6 +49,7 @@ def _world(contract: dict[str, Any]) -> WorldConfig:
 
 
 def _movement(contract: dict[str, Any]) -> MovementConfig:
+    """Build the movement/barriers section (move set, quotas, step ceiling)."""
     name = "movement_and_barriers"
     section = _section(contract, name)
     return MovementConfig(
@@ -58,6 +61,7 @@ def _movement(contract: dict[str, Any]) -> MovementConfig:
 
 
 def _scoring(contract: dict[str, Any]) -> ScoringConfig:
+    """Build the scoring section (capture/survival points, tie, technical loss)."""
     name = "scoring"
     section = _section(contract, name)
     return ScoringConfig(
@@ -71,6 +75,7 @@ def _scoring(contract: dict[str, Any]) -> ScoringConfig:
 
 
 def _pheromones(contract: dict[str, Any]) -> PheromoneConfig:
+    """Build the pheromones section (locked emission/decay model, kit floor)."""
     name = "pheromones"
     section = _section(contract, name)
     return PheromoneConfig(
@@ -82,6 +87,7 @@ def _pheromones(contract: dict[str, Any]) -> PheromoneConfig:
 
 
 def _network(contract: dict[str, Any]) -> NetworkConfig:
+    """Build the network/league section (timeouts, series shape, token budget)."""
     name = "network_and_league"
     section = _section(contract, name)
     return NetworkConfig(
@@ -96,6 +102,7 @@ def _network(contract: dict[str, Any]) -> NetworkConfig:
 
 
 def _rate_limiter(contract: dict[str, Any]) -> RateLimiterConfig:
+    """Build the rate-limiter/gatekeeper section (bucket rate, retries, queue)."""
     name = "rate_limiter_gatekeeper"
     section = _section(contract, name)
     return RateLimiterConfig(

@@ -1,16 +1,39 @@
 # Police-Thief P2P — Distributed Cops-and-Robbers over a Peer-to-Peer Network
 
-Final project, "Orchestration of AI Agents" — Dept. of Computer Science, University of Haifa, 2026.
+**Final project, "Orchestration of AI Agents" — Dept. of Computer Science, University of Haifa, 2026.**
+**Team code:** *TBD before first counted game (task 9.2.1)* · **Version:** 1.00 · **Tag:** `v1.0-submission` *(set at task 8.19.4)*
 
 Two autonomous agents — **cop** and **thief** — race on a discrete grid with **no central server
 and no referee**: P2P over FastMCP, SHA-256 commit-reveal integrity, decaying pheromone scent
 fields, Bayesian belief maps, deceptive natural-language hints, a local-truth GUI, and a
-cryptographic Replay Viewer.
+cryptographic Replay Viewer. This document is the project's academic report (rulebook rule #42):
+system overview, the Dec-POMDP formalism behind it, the orchestration dilemmas we had to solve,
+three generations of strategy work with measured tables, the deception findings, the interop
+conformance chapter, and an honest self-grade of the code.
 
-> **Status: in development.** This README will become the full academic report at submission
-> (Dec-POMDP model, orchestration dilemmas, strategies, screenshots, companion-repo link).
+---
 
-## Quick start (will be kept current)
+## Table of contents
+
+1. [Quick start](#quick-start)
+2. [Abstract & system overview](#1-abstract--system-overview)
+3. [The Dec-POMDP formalism](#2-the-dec-pomdp-formalism)
+4. [Belief machinery](#3-belief-machinery-scent-motion-negative-evidence-claim-pin)
+5. [Orchestration dilemmas](#4-orchestration-dilemmas-turns-failures-gatekeeper)
+6. [Strategy generation 0–1 — pinch failure and the region cop](#5-strategy-generation-01--pinch-failure-and-the-region-cop)
+7. [Strategy generation 2 — wall cop, red team, hybrid frontier](#6-strategy-generation-2--wall-cop-red-team-hybrid-frontier)
+8. [The verbal layer & deception economics](#7-the-verbal-layer--deception-economics)
+9. [Interop chapter — the kit, the vectors, the bytes we fixed](#8-interop-chapter--the-kit-the-vectors-the-bytes-we-fixed)
+10. [Results tables](#9-results-tables-reproduced-from-notebooksanalysisipynb)
+11. [Screenshots](#10-screenshots)
+12. [Cross-repo links](#11-cross-repo-links)
+13. [Code-quality self-grade (rule #55)](#12-code-quality-self-grade-rule-55)
+14. [Limitations & future work](#13-limitations--future-work)
+15. [Documentation index](#documentation-index)
+
+---
+
+## Quick start
 
 ```bash
 uv sync
@@ -28,24 +51,459 @@ uv run pytest
 uv run ruff check .
 ```
 
-## Documentation
+Config: shared, signed game contract `config/game.json` (mirrors the rulebook's Mandatory
+Parameters Table, Appendix ו; byte-identical on both peers, locked via SHA-256). Private
+per-peer settings: `config/police/game.toml`, `config/thief/game.toml` (overlay rule: shared
+JSON overrides private TOML). Secrets live in `.env` / `credentials.json` / `token.json` — all
+git-ignored; see `.env-example`. League exposure: [docs/TUNNELING.md](docs/TUNNELING.md).
+
+---
+
+## 1. Abstract & system overview
+
+Cop and thief are two fully separate OS processes, each simultaneously a FastMCP **server**
+(exposing tools to the opponent) and a FastMCP **client** (calling the opponent's tools).
+Neither process holds the other's true position — there is no referee and no shared memory.
+Each side reconstructs the game from its own local truth: its own moves, the opponent's decaying
+scent field, and the opponent's natural-language hints, which may be lies. Every move is
+protected by a SHA-256 commit-reveal scheme, so integrity does not depend on either side's
+honesty — it depends on a hash function. At game end a two-layer mutual audit (hash replay +
+trajectory physics) either agrees a verdict or exposes a forgery as a technical loss.
+
+**C4 context:**
+
+```
++----------------+        commits/reveals/hints over MCP  +----------------+
+|  POLICE peer   | <---   (via public tunnel URLs)   ---> |   THIEF peer   |
++-------+--------+                                        +--------+-------+
+        |                                                          |
+        | Gmail API (send-only, JSON attachment)                   |
+        v                                                          v
++-------+---------+     game-end reports      +--------------------------+
+| Lecturer inbox  | <------------------------  |  Anthropic API (Haiku)  |
++-----------------+                            |  verbal layer only     |
+                                                +--------------------------+
+```
+
+**C4 containers (one per peer process):** a Tkinter GUI rendering local truth only; a FastMCP
+server for inbound tools; an MCP client for outbound calls; the Orchestrator runtime (state
+machine, deadline tracker, watchdog); file-based storage (`config/`, `logs/`, `results/`). A
+separate Replay Viewer process loads saved logs offline. Full component/code views:
+[docs/PLAN.md §1](docs/PLAN.md).
+
+**Why this shape.** The rulebook forbids a referee (#1/#2) and forbids showing the objective
+board (#8/#9); the only way to build a competitive, honest agent under those constraints is to
+make every claim self-verifying (crypto) and every inference probabilistic (belief). The rest of
+this report walks through the formal model (§2), how belief is actually computed (§3), the
+reliability engineering that keeps two independent processes from deadlocking each other (§4),
+three generations of strategy work (§5–§6), what we learned about lying over a scent channel
+(§7), and how we made our wire format interoperate with an independently authored kit (§8).
+
+## 2. The Dec-POMDP formalism
+
+The game is a two-agent, general-sum **decentralized partially observable Markov decision
+process**, ⟨n, S, {Aᵢ}, P, R, {Ωᵢ}, O, γ⟩ with n = 2 (police *p*, thief *t*):
+
+- **State space `S`.** `(pos_p, pos_t, barriers, step)` — both agents' cells on a
+  `grid_size × grid_size` board (minimum 7×7), the set of placed barrier cells (irreversible,
+  quota `max_barriers = 14`), and the step counter (ceiling `max_moves = survival_threshold =
+  35`). `domain/state.py::GameState` is the code's ground truth; it exists once per process and
+  is never transmitted.
+- **Action space `Aᵢ`.** `{N, S, E, W, STAY}` for both roles (`constants.MOVE_DELTAS` — diagonals
+  are unrepresentable, not merely rejected); the police additionally has a barrier-placement
+  action, legal only on a STAY turn, on its own cell or an orthogonal neighbor, subject to the
+  quota. `domain/rules.py` is the sole source of legality (`legal_moves`, `validate_move`).
+- **Transition function `P`.** Deterministic given the joint action and the barrier set: a
+  legal move updates one coordinate; STAY (with or without a barrier) updates none; capture is
+  detected on coordinate overlap, on a barrier landing on the thief's cell (#46), or on the
+  thief having zero legal exits (#47, `rules.is_trapped`). `domain/engine.py::apply/end_turn`
+  implements `P` and the termination check in one place.
+- **Reward `R`.** The fixed scoring table from `config/game.json` (capture 20/5, survival 5/10,
+  tie 2, technical loss 0/0 — `domain/scoring.py`), applied at game end per role. `R` is common
+  knowledge (part of the signed contract) even though `S` at any given time is not.
+- **Observation function `Ωᵢ`.** Each agent observes only: its own position and step-local
+  board state; the *opponent's* scent field (never its own — local-truth discipline, rule #8);
+  and the opponent's verbal hint for that turn, which may misrepresent intent. It never observes
+  `pos_opponent` directly. `services/world_view.py::WorldView` is the object with literally no
+  field capable of holding the opponent's true position — rule #9 is enforced by the schema, not
+  by a runtime check that could be bypassed.
+- **Observation model `O`.** `P(Ωᵢ | S, A)` is exactly the pheromone emission/decay model of §3:
+  a deterministic function of the joint action history, cryptographically locked pre-series
+  (rule #23) so both agents provably share the same `O`.
+- **Discount `γ`.** Effectively 1 within a mini-game (finite horizon, `max_moves` bounded); the
+  scoring table's capture/survival split is what makes early termination valuable, standing in
+  for discounting across the fixed 35-step ceiling.
+
+The **decentralized** part is structural, not incidental: there is no central controller with
+joint-state access (that would be a referee, forbidden by #1/#2), so each agent must maintain and
+act on its own posterior over `S` — the belief map of §3 is the Dec-POMDP's belief state,
+computed independently and never reconciled except at the end-of-game audit (which reconciles
+*history*, not *belief*).
+
+## 3. Belief machinery: scent evidence, motion judge, negative evidence, claim pin
+
+`domain/belief.py::BeliefMap` holds a `grid_size × grid_size` probability distribution over the
+opponent's cell, updated once per own turn in three stages:
+
+1. **Motion diffusion (the "judge").** The previous posterior is spread across each cell's legal
+   neighbors (barriers excluded), modeling "the opponent moved somewhere reachable since I last
+   updated" — this is the prior for the new step, not a re-derivation from scratch.
+2. **Scent likelihood.** The opponent's own scent field (Figure 4's fixed 5×5 emission matrix,
+   center 0.90, decaying by `τ(t+1) = max(0, (1-ρ)·τ(t) + Δτ)` with ρ = 0.10 — verbatim, tested
+   digit-for-digit in `test_scent.py`) is read and used as a multiplicative likelihood: warm
+   cells become more probable, barrier cells are pinned to zero, and the result is renormalized.
+   The value 0.81 (= 0.9 × 0.9, one decay step from peak) is the yardstick `expected_fresh_trail`
+   uses throughout the trust model.
+3. **Hint fusion and negative evidence.** A decoded verbal hint contributes a direction/region
+   likelihood term weighted by the EWMA trust coefficient from `domain/trust.py` (§7); a
+   **truthful "not caught" answer** to a capture claim is negative evidence — `belief.exclude`
+   zeroes that one cell without needing a positive sighting, closing a real gap we found only
+   once we started testing over the live wire (§4, §5.6).
+
+On top of the base model (compatible with the reference belief scheme) we ship two competitive
+additions, both load-bearing for conversion in §5–§6: **barrier-aware diffusion** (motion spreads
+only across non-barrier neighbors, so belief mass never leaks through a wall a moment after it
+goes up) and **verified-claim pinning** (`hybrid.py`/§6): when the cop's own scent independently
+corroborates a thief claim, belief collapses ~25× faster onto that cell instead of decaying at the
+ordinary trust rate. Every stage is barrier-aware, renormalizing, and covered by property tests
+for the two invariants that actually matter operationally: Σp = 1 after every update, and
+`p(barrier cell) = 0` always (`test_belief.py`, 17 tests).
+
+## 4. Orchestration dilemmas: turns, failures, gatekeeper/orchestrator
+
+Building the reliability layer meant repeatedly answering the same question the rulebook poses
+explicitly (ch. 8): *what happens when the world fails at exactly the wrong moment?*
+
+- **Turn-taking without a referee.** `services/turn_taking.py` / `turn_receiving.py` implement
+  the commit → ack → reveal → apply cycle from ADR-7: the wire carries *only* a commit hash, the
+  hint, the sender's scent grid, and public events (barrier declaration, capture claim/answer,
+  concession) — never a raw position. `services/match_runtime.py` is the single object that owns
+  one peer's full mini-game loop; nothing else is allowed to drive it (rule #3).
+- **State machine as the first line of defense.** `services/phase_machine.py` encodes exactly six
+  states and the legal-transition table from PLAN §2; any other transition raises immediately.
+  This turned what would otherwise be silent, hard-to-reproduce deadlocks (two processes each
+  waiting on the other, with no crash and no error) into loud, testable, development-time
+  exceptions (`test_phase_machine.py`, 14 tests over every legal and illegal edge).
+- **Deadlines are a failure mode, not patience.** `services/deadline.py::DeadlineTracker` puts an
+  expiry on every outbound MCP call (30 s default), with bounded retries and backoff from config;
+  exhaustion drives the phase machine to `TECHNICAL_LOSS` and closes the turn cleanly instead of
+  hanging. `docs/TUNNELING.md` documents the observed consequence: a dead opponent tunnel yields a
+  clean technical loss in ~11 s, never a hang.
+- **The watchdog is a second, independent clock.** `services/watchdog.py` monitors heartbeats
+  from the main loop itself (not from the network) — a hung *local* process (e.g., a runaway
+  brain computation) gets the same controlled persist-then-shutdown treatment as a dead
+  opponent, via `recovery.py`'s crash-rescue path that preserves the logbook so a killed process
+  can resume from disk rather than losing a game's audit trail.
+- **At-least-once delivery over an unreliable channel (kit 7.1).** Once we started fuzzing our
+  own wire, retried commits reappeared even on a healthy connection (client-side retry policy vs
+  server-side idempotency is a genuinely separate concern). `services/enforcement.py` now dedupes
+  on `(step, commit)`: the identical retransmission is absorbed idempotently and never renews a
+  deadline, but the *same step with a different commit* — equivocation — stays loud and refuses.
+  A capacity-2 reorder buffer replays out-of-order steps in order rather than rejecting them
+  outright. Both behaviors are pinned against the kit's own `delivery_contract.json` decision
+  table (§8), not just our own intuition of "reasonable."
+- **The gatekeeper is the orchestrator's mirror image for outbound email.** `shared/gatekeeper.py`
+  composes a token bucket (verbatim refill law, injected clock), a daily quota, and a DOS lock
+  behind a FIFO queue, so the one truly external, rate-limited resource (Gmail) can never be
+  hammered by a bug in the game loop — the orchestrator protects *turns*, the gatekeeper protects
+  *the account*, and neither module is aware of the other's existence (rule #3's "single gateway"
+  read literally: two gateways, two concerns, zero cross-talk).
+- **The concession that had to be spoken, not inferred.** Our first live-network capture
+  (`8.20`) revealed a real orchestration bug hiding as a strategy bug: a trapped thief simply
+  went silent, and the cop — correctly, per rule #21/#22 — never assumed a capture it had not been
+  told about. The fix was not smarter inference; it was making rule #47 ("no legal move ⇒
+  captured") a spoken event: `services/turn_taking.py` now emits a sealed, auditable concession
+  message the instant the thief detects its own trap, and `services/inbound.py` distinguishes
+  that concession from an ordinary claim answer so a legacy `win_claim` message still works. The
+  lesson generalizes: in a system with no referee, *every* terminal condition must be an
+  explicit, sealed message — an inferred ending is a disagreement waiting to happen.
+
+## 5. Strategy generation 0–1 — pinch failure and the region cop
+
+**Generation 0 (blind).** With a degenerate belief (opponent position known exactly), the cop
+brain follows a barrier-aware BFS shortest path (`brain/pathfind.py`) with no manual
+intervention — the M3 milestone. This isolates *decision correctness* from *uncertainty*, and is
+also the honest baseline every later number in this report is measured against.
+
+**Generation 1, first attempt: the pinch cop.** Our first belief-driven cop targeted the argmax
+of the belief map and used its remaining barrier quota to "pinch" the thief's estimated corridor.
+Sweeping the pinch parameters across the full configuration space in the research notebook
+(`notebooks/analysis.ipynb` §1) produced a flat **0% capture surface** — not a tuning problem, a
+design flaw. §2 of the notebook diagnoses it with a distance trace: the cop and a competent
+evader fall into a **parity dance**, a stable oscillation where the cop's BFS-shortest response to
+the current belief argmax is always one parity class away from actually closing distance, because
+chasing a *point estimate* discards exactly the information (spread of the distribution) needed to
+cut off an evader who is reacting to the same estimate.
+
+**Generation 1, the fix: the region cop.** `brain/region.py` replaces "chase the argmax" with
+**minimize the thief's reachable safe region**: rather than a single target cell, it treats the
+whole set of cells consistent with high belief mass as the target and chooses barrier placements
+that shrink that region monotonically (with exit-count tie-breaks and quota guards so it never
+over-commits early). Fixing a `distance_field` `-1`-for-unreachable off-by-one (`_reach`) was the
+last correctness bug standing between the design and the numbers: **1900/1900** captures across
+the full exhaustive pairing grid, mean 7.8 steps to capture, worst case 11 steps, using roughly 2
+of the 14 barriers on average (`notebooks/analysis.ipynb` §3–§6; `test_region_brain.py`).
+
+The throughline for §5–§6: **minimizing an opponent's reachable space beats chasing a point
+estimate of their position**, whether the estimate comes from truth (generation 0), belief
+(generation 1), or a hostile, evolved adversary (generation 2, next).
+
+## 6. Strategy generation 2 — wall cop, red team, hybrid frontier
+
+**The arms race.** A region cop that is *unbeaten* against reference-shaped thieves is not the
+same claim as *unbeatable*; we treated our own region cop as the opponent to attack.
+`brain/evade.py` is a worst-case-region evader found via a weight-blend search over a
+multi-objective score (region size, cop distance, openness, mobility) after **lexicographic**
+orderings of the same objectives consistently lost — a searchable design lesson in its own right,
+not just a numeric one: ranking sub-goals discards exactly the trade-off information a blend
+preserves. The evolved evader won **60 of 72** rounds against the plain region cop.
+
+**Round 2: the wall cop.** `brain/wall.py` answers not with a smarter chase but with a change of
+plan: commit early to a center wall with one guarded door, collapsing the board into a
+smaller region before falling back to region-hunt logic once the thief is contained. Several
+minimax-style and explicit anti-dance cop designs were attempted and *rejected* as failed designs
+(documented, not deleted, in `notebooks/analysis.ipynb` §7–§8) before the wall-then-hunt
+combination proved both simple and robust. Exhaustive validation across **every archetype** in
+the project (blind, region, evade, wall, hybrid) reached **1900/1900** captures, worst-case 29 of
+35 steps, worst-case barrier usage 8 of 14.
+
+**Red team.** We then built three purpose-built attackers against our *own* wall cop —
+`DoorCamper`, `SideFlipper`, `WallBlocker` — and found one genuine hole: a **pillar-orbit** pattern
+(2 losses out of 192 trials) where a hunting barrier stone became an unintended merry-go-round
+around a pillar cell. The fix is a **dance-breaker**: a repeated-state detector that spends one
+anchored, hunt-preserving barrier to break the cycle rather than adding a special case for the
+specific orbit shape found. Re-validated exhaustively afterward across six archetypes at
+**1900/1900**, worst case 32 of 35 steps — the fix generalized rather than just patching the
+observed instance, which we confirmed by construction (the detector is topology-agnostic) rather
+than by hoping the red team hadn't found everything.
+
+**The hybrid frontier — and why it is not the default.** `brain/hybrid.py` adds three
+"commit tripwires" (irreversible wall-commitment triggers) on top of the wall cop, chasing a
+speed/margin trade-off. It is genuinely stronger against weak thieves (1900/1900, mean 12 steps)
+but **weaker against our own elite evader** (1891/1900) — a real regression, not noise, and the
+reason it is documented and shipped as a *selectable* profile in config rather than promoted to
+default: a strategy that wins faster against weak opponents at the cost of a measurable loss rate
+against the strongest one is a deliberate trade-off for the league operator to make, not one we
+make silently on their behalf. Config documents both cop profiles side by side with their
+published numbers (§9).
+
+**Determinism, redefined.** Along the way "deterministic" stopped meaning "the same object always
+decides the same way" (true but uninteresting) and came to mean the operationally relevant claim:
+**a freshly constructed brain, given the same state, makes the same decision** — the property
+that actually matters for reproducible replays and for red-teaming an opponent's exact published
+behavior rather than an instance's incidental internal counters.
+
+## 7. The verbal layer & deception economics
+
+Hints are free natural language (rules #26/#27 — never coordinates), capped at 15 words, produced
+by a provider chain (`template` deterministic fallback → `ollama` → `claude_api`/Haiku, our
+default) that always degrades gracefully to the zero-token template on any failure, so a game
+never stalls on an LLM outage. The `Intent` flag (truth/lie) is decided by strategy, sealed into
+the commit record, and the LLM never sees or influences movement (rule #25) — it composes text
+for a decision already made.
+
+**Measuring the cost of lying.** Before building a deception *policy* we measured the effect of
+one against a naive, hint-trusting cop: an opponent that follows a lying hint accumulates belief
+error rising from **0.56 to 2.69** (notebook §11) relative to a truthful baseline — the first hard
+number establishing that lying is actually worth the cognitive and engineering cost of doing it
+well, rather than an assumed-valuable feature.
+
+**A temporal trust model, not a snapshot one.** `domain/trust.py` compares the *displacement* of
+the opponent's scent centroid between turns against the direction the hint claimed, rather than a
+single-frame intensity check — the naive check is defeated trivially by an opponent standing
+still and lying about direction (no motion to contradict); the temporal check catches it because
+displacement, not intensity, is what a direction claim actually predicts.
+
+**An adaptive deception policy, not a coin flip.** `services/deception.py`'s `DeceptionPolicy`
+selects among honest / mislead / vague / adaptive styles, with the adaptive style adjusting its
+lie rate off the *opponent's own claim-gap feedback* (how far their belief argmax lands from
+truth after each hint) — lying more against an opponent who is demonstrably not catching on, and
+throttling back against one who is. The vague style is generated through both the template and
+the Haiku prompt paths; one iteration's Haiku output leaked the phrase "right now" (an implicit
+truthful timestamp inside a supposedly vague sentence) and had to be caught and constrained
+explicitly in the prompt — a small, concrete example of why every LLM-authored hint is still
+validated structurally (`validate_hint`) before it ever reaches the wire, never trusted as-is.
+
+**The headline result.** Against our own belief-driven cop, actively lying (belief error 0.62)
+turned out to be *worse for the thief than staying silent* (1.00, i.e. no hint at all) — because
+a detected lie is redirected evidence, not neutral noise: our trust model uses a caught
+contradiction to push belief mass *toward* the true scent concentration, so a naive liar poisons
+their own position estimate for us more effectively than silence would have. The practical
+takeaway carried into brain design: **deception is a tool for degrading a weak, hint-trusting
+opponent, not a universal advantage — and it must be evaluated against the specific belief model
+on the other end**, not assumed to help unconditionally.
+
+## 8. Interop chapter — the kit, the vectors, the bytes we fixed
+
+Late in the project we obtained the league's independent interoperability kit
+(`copthief-league-protocol`, MIT-licensed) — a full 1032-line `SPEC.md` plus vendored test
+vectors — built to let two teams' independently written implementations agree on every
+byte that crosses the audit boundary, because a mismatch at audit time scores **both** teams
+zero regardless of who is "right." We vendored the kit's license and 14 vector fixtures verbatim
+under `tests/vectors/` and wrote `tests/interop/test_kit_vectors.py`: 11 tests that each feed a
+vendored vector through *our* code and demand byte-exact equality, the same standard the kit's
+own `verify_vectors.py` holds itself to.
+
+**What we had to change, and why it mattered:**
+
+- **IEEE floating-point drift in the scent kernel.** Our originally *computed* emission values
+  matched the spec's formula but drifted from the kit's vectors in the last bit or two of a
+  `float` — the classic trap of two independently-implemented floating-point pipelines being
+  "equivalent" mathematically but not byte-identical. The fix was to replace the computed values
+  with a verbatim lookup table matching the registered `multiplicative_book_v1` model exactly,
+  rather than trying to chase bit-for-bit equivalence through arithmetic — the scent model is a
+  *contract*, not a formula to be re-derived, once a canonical registered version exists.
+- **The scent lock moved from "our own hash of our own formula" to the registered book.** Rule
+  #23 requires the model be locked pre-series; we now lock against the kit's own registered
+  `multiplicative_book_v1` document instead of a self-described formula string, so two independently
+  written peers converge on the identical lock value without needing to exchange source code.
+- **The wire terms shape flattened to 14 keys** (`shared/interop.py::terms_from_contract`) to
+  match the kit's `terms_signature` fixture, with `sign_terms`/`derive_game_ids` producing the
+  exact `game_uid`/`game_id` derivation the kit's `derive_starts` and `game_uid` vectors pin.
+- **At-least-once delivery and the zero-step capture final** (§4, §6.13) were both driven
+  directly by kit fixtures — `delivery_contract.json`'s decision table and the kit's `3.1`
+  capture-final shape (`claim_response {claim: [own cell], caught: true}`) — rather than by our
+  own guess at "reasonable" wire behavior, which is exactly the point of an interop kit: it
+  replaces mutual guessing about edge cases with a shared, testable ground truth.
+
+Twelve vectors are conformance-checked byte-for-byte today (`canonical_json`, `commit_reveal`,
+`delivery_contract`, `derive_starts`, `game_uid`, `joint_seed`, `locked_model`,
+`pairing_declaration`, `pheromone`, `report_consensus`, `scent_book_v3`, `smell_binding`,
+`terms_signature`, `uid_declaration`); the remaining report-alignment items (consensus signature
+serialization, league bookkeeping fields, mutual sparring series against the kit's own reference
+peer) are tracked as open work in `docs/TODO.md` §8.14–§8.15, since they require the kit's own
+`sparring.cli` and a live cross-implementation run rather than a static vector.
+
+## 9. Results tables (reproduced from `notebooks/analysis.ipynb`)
+
+| Generation | Design | Capture rate | Mean steps | Max steps | Barrier use |
+|---|---|---|---|---|---|
+| 0 | Blind (known position, BFS) | n/a (oracle) | shortest-path | — | — |
+| 1, attempt 1 | Pinch cop (argmax + corridor pinch) | **0%** (flat sweep) | — | — | — |
+| 1, fix | Region cop (safe-region minimization) | **1900/1900** | 7.8 | 11 | ~2 / 14 |
+| 2, round 1 | Evolved evader vs. region cop | cop: 12/72 | — | — | — |
+| 2, round 2 | Wall cop vs. every archetype | **1900/1900** | — | 29/35 | 8/14 (worst) |
+| 2, red team | Wall cop + dance-breaker, post-fix | **1900/1900** | — | 32/35 (worst) | — |
+| 2, hybrid | Hybrid vs. weak thieves | **1900/1900** | 12 | — | — |
+| 2, hybrid | Hybrid vs. elite evader | **1891/1900** | — | — | — (not default) |
+
+| Deception condition (vs. our belief-driven cop) | Belief error |
+|---|---|
+| Naive lie (measured effect, before policy design) | 0.56 → 2.69 |
+| Adaptive lying thief vs. our cop | 0.62 |
+| Silence (no hint at all) | 1.00 |
+
+| Reliability observation | Value |
+|---|---|
+| Timeout-to-technical-loss path (dead tunnel) | ~11 s, no hang |
+| Rule-47 ending, wire-validated (Blind/Enhanced thieves vs. wall cop) | captured @ step 28, agreed verdicts |
+| Elite evader vs. wall cop, wire-validated | only design still surviving |
+
+| Engineering | Value |
+|---|---|
+| Test suite | 611 tests passing |
+| Coverage | 97.8% (gate: ≥ 85%, `pyproject.toml fail_under=85`) |
+| Token budget utilization (measured, full series) | ~14% of the ~200k series budget |
+| Interop conformance vectors, byte-exact | 14 vendored fixtures, 11 dedicated tests |
+
+Full methodology, every intermediate figure, and the exhaustive 1900-pair validation harness are
+executed and version-controlled in `notebooks/analysis.ipynb` (built as code via
+`scripts/build_notebook.py` and executed via `nbclient` — regeneration is deterministic, no
+hand-edited output cells).
+
+## 10. Screenshots
+
+*Owner-supplied at task 9.3 — captured from a real self-play match, embedded here before
+submission.*
+
+- **Live GUI — belief heatmap.** `[screenshot pending: gui/live.py during a self-play match,
+  showing the belief-argmax "T?" marker, own position "C", and placed barriers — never the
+  opponent's true cell, per rule #8/#9]`
+- **Replay Viewer — Verified OK.** `[screenshot pending: gui/replay.py on a saved
+  log_<game_id>_g<NN>.json, stepping to the final step and showing the green "Verified OK"
+  stamp from the two-layer audit]`
+
+## 11. Cross-repo links
+
+Per rules #49/#50, the submission splits this development repo into two per-role repositories
+(`police-agent`, `thief-agent`) at task 8.19, each carrying its own README (cross-linking the
+other), `config/`, PRDs, `PLAN.md`, `TODO.md`, and a `v1.0-submission` tag. Links are filled in
+here and mirrored into the result JSON's four-link block (`reports.result_payload`) once the
+split lands:
+
+- Police-agent repository: `TBD — task 8.19`
+- Thief-agent repository: `TBD — task 8.19`
+
+## 12. Code-quality self-grade (rule #55)
+
+Rule #55 restricts self-grading to code quality, never the league outcome — the following is
+that, and only that, measured against this repository's own standing definition of done
+(`docs/TODO.md`, front matter):
+
+- **Tests & coverage:** 611 tests passing, 97.8% coverage against an 85%-floor gate that fails
+  the whole suite if crossed — this is a hard CI gate, not an aspiration.
+- **Lint:** `ruff check .` clean against the configured rule families (E,F,W,I,N,UP,B,C4,SIM),
+  line length 100, target py310.
+- **150-line law:** the overwhelming majority of `src/` files are within the 150-code-line limit;
+  a handful currently run over it (`domain/trust.py`, `services/turn_taking.py`,
+  `services/orchestrator.py`, `services/inbound.py`, `domain/brain/region.py`) by margins the
+  verification pass (`docs/TODO.md` §8.18) is scheduled to trim via the split plans already
+  written into each mechanism PRD's "File Split" section — flagged here honestly rather than
+  quietly excluded from the count.
+- **Documentation-first process:** every mechanism has a dedicated PRD written and reviewed
+  before its code; `docs/PLAN.md` records eight ADRs with trade-offs, not just decisions;
+  `docs/COMPLIANCE.md` traces every one of the rulebook's 55 rules to a module and a proving
+  test, not to a paragraph of prose.
+- **Configuration discipline:** zero hardcoded gameplay values — every binding number traces to
+  `config/game.json` or a per-peer TOML, pinned against Appendix ו by
+  `test_contract_values.py`.
+- **Determinism:** replays are byte-reproducible; brain decisions are a pure function of state,
+  not of instance history (§6) — a property we rely on for both testing and red-teaming.
+- **Honest failure record:** four production bugs (the parity dance, the pillar-orbit hole, the
+  silent-thief concession gap, and the delivery-dedupe gap) are documented in this report and in
+  `docs/TODO.md` alongside their fixes, not smoothed over — we consider a project's failure log a
+  code-quality signal in its own right, since it is the only honest evidence that the test suite
+  is doing real work rather than confirming what was already assumed.
+
+## 13. Limitations & future work
+
+- **Report alignment (kit §6, `docs/TODO.md` §8.14) is open.** Consensus signature
+  serialization, trimmed mutual-agreement scope, and league bookkeeping fields (tie/diversity
+  handling, `games_played_including_this`) are designed but not yet cross-checked against the
+  kit's own example result file.
+- **No live sparring run against the kit's reference peer yet** (`docs/TODO.md` §8.15) — our
+  conformance today is vector-level (static, byte-exact) rather than a live six-sub-game exchange
+  with a second, independently-authored implementation; that is the strongest remaining
+  correctness signal we have not yet collected.
+- **The hybrid cop is a documented trade-off, not a solved problem.** It is stronger against weak
+  opponents and measurably weaker against our own strongest evader (§6); a design that closes
+  that gap without sacrificing speed against weak opponents remains open.
+- **RL was deliberately out of scope (ADR-2).** The heuristic track met every KPI without
+  training cost or convergence risk; a reinforcement-learning cop/thief pair remains an
+  interesting, untaken direction for a non-graded extension.
+- **Belief modeling stays a grid distribution, not a particle filter** — adequate and transparent
+  at the 7×7 floor; would need revisiting only if the league adopted materially larger boards.
+- **A handful of files sit slightly over the 150-line law** (§12) pending the scheduled
+  verification-pass split — a known, tracked gap rather than a discovered one.
+
+---
+
+## Documentation index
 
 | Document | Purpose |
 |---|---|
 | [docs/PRD.md](docs/PRD.md) | Product requirements (master) |
 | [docs/PLAN.md](docs/PLAN.md) | Architecture, C4 model, ADRs |
 | [docs/TODO.md](docs/TODO.md) | Task tracking & milestone gates |
+| [docs/COMPLIANCE.md](docs/COMPLIANCE.md) | All 55 rules traced to module + test |
 | docs/PRD_*.md | Dedicated PRD per mechanism (7 files) |
+| [docs/TUNNELING.md](docs/TUNNELING.md) | Public-URL exposure for league play |
 | [docs/PROMPTS.md](docs/PROMPTS.md) | Prompts book (AI-assisted development log) |
-
-## Configuration
-
-Shared, signed game contract: `config/game.json` (values mirror the rulebook's Mandatory
-Parameters Table; byte-identical on both peers, locked via SHA-256). Private per-peer settings:
-`config/police/game.toml`, `config/thief/game.toml` (overlay rule: shared JSON overrides).
-Secrets live in `.env` / `credentials.json` / `token.json` — all git-ignored; see `.env-example`.
+| `notebooks/analysis.ipynb` | Executed research notebook behind §5–§9 of this report |
 
 ## License & credits
 
 MIT (see LICENSE). Built with FastMCP, google-api-python-client, Anthropic API. Reference
-implementation consulted: rmisegal/Game-P2P-Cop-Chase (educational-use license).
+implementation consulted: rmisegal/Game-P2P-Cop-Chase (educational-use license). Interop
+conformance vectors vendored from the league's `copthief-league-protocol` kit (MIT,
+`tests/vectors/KIT_LICENSE`).

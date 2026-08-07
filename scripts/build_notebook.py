@@ -38,14 +38,15 @@ CELLS = [
         "replacement - the **region cop** - and tunes both sides' parameters."
     ),
     code(
-        "import sys, itertools\n"
+        "import itertools\n"
+        "import sys\n\n"
         "sys.path.insert(0, '../src')\n"
-        "import matplotlib.pyplot as plt\n"
+        "import matplotlib.pyplot as plt\n\n"
         "from police_thief.constants import ROLE_POLICE, ROLE_THIEF\n"
         "from police_thief.domain.board import Board\n"
         "from police_thief.domain.brain import enhanced\n"
         "from police_thief.domain.brain.enhanced import EnhancedPoliceBrain, EnhancedThiefBrain\n"
-        "from police_thief.domain.brain.region import RegionPoliceBrain, region_size\n"
+        "from police_thief.domain.brain.region import RegionPoliceBrain\n"
         "from police_thief.domain.state import GameState\n"
         "from police_thief.sdk import SimulationSdk\n"
         "from police_thief.services.runtime import LocalMatchRunner\n"
@@ -88,13 +89,17 @@ CELLS = [
         "fig, ax = plt.subplots(figsize=(6, 4))\n"
         "grid = [[pinch_results[(p, r)] for r in [0, 1, 2, 3]] for p in [1, 2, 3, 4]]\n"
         "image = ax.imshow(grid, vmin=0, vmax=1, cmap='RdYlGn')\n"
-        "ax.set_xticks(range(4), [0, 1, 2, 3]); ax.set_yticks(range(4), [1, 2, 3, 4])\n"
-        "ax.set_xlabel('BARRIER_RESERVE'); ax.set_ylabel('PINCH_RANGE')\n"
+        "ax.set_xticks(range(4), [0, 1, 2, 3])\n"
+        "ax.set_yticks(range(4), [1, 2, 3, 4])\n"
+        "ax.set_xlabel('BARRIER_RESERVE')\n"
+        "ax.set_ylabel('PINCH_RANGE')\n"
         "ax.set_title('Pinch cop capture rate (perfect information)')\n"
         "for i, p in enumerate([1, 2, 3, 4]):\n"
         "    for j, r in enumerate([0, 1, 2, 3]):\n"
         "        ax.text(j, i, f'{pinch_results[(p, r)]:.0%}', ha='center', va='center')\n"
-        "fig.colorbar(image); plt.tight_layout(); plt.show()"
+        "fig.colorbar(image)\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
     ),
     md(
         "**The surface is flat at 0%.** No parameter setting converts a single start - the "
@@ -121,11 +126,14 @@ CELLS = [
         "    distances.append(gap)\n"
         "fig, ax = plt.subplots(figsize=(7, 3))\n"
         "ax.plot(range(1, len(distances) + 1), distances, marker='o', markersize=3)\n"
-        "ax.set_xlabel('step'); ax.set_ylabel('cop-thief Manhattan distance')\n"
+        "ax.set_xlabel('step')\n"
+        "ax.set_ylabel('cop-thief Manhattan distance')\n"
         "ax.set_title(f'The parity dance: distance never reaches 0 "
         "(outcome: {state.outcome.event})')\n"
         "ax.axhline(1, color='red', linestyle=':', label='capture requires 0')\n"
-        "ax.legend(); plt.tight_layout(); plt.show()"
+        "ax.legend()\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
     ),
     md(
         "## 3. The region cop\n\n"
@@ -150,9 +158,11 @@ CELLS = [
         "(quota {contract.movement.max_barriers})')\n\n"
         "fig, ax = plt.subplots(figsize=(7, 3))\n"
         "ax.hist(captures, bins=range(2, 14), edgecolor='black')\n"
-        "ax.set_xlabel('steps to capture'); ax.set_ylabel('matches')\n"
+        "ax.set_xlabel('steps to capture')\n"
+        "ax.set_ylabel('matches')\n"
         "ax.set_title('Region cop: time-to-capture over the evaluation grid')\n"
-        "plt.tight_layout(); plt.show()"
+        "plt.tight_layout()\n"
+        "plt.show()"
     ),
     md(
         "## 4. Sensitivity: choosing MIN_SHRINK and ENDGAME\n\n"
@@ -204,10 +214,12 @@ CELLS = [
         "    mean_survival.append(sum(steps for _, steps, _ in outcomes) / len(outcomes))\n"
         "fig, ax = plt.subplots(figsize=(6, 3))\n"
         "ax.plot(penalties, mean_survival, marker='o')\n"
-        "ax.set_xlabel('TRAP_RISK_PENALTY'); ax.set_ylabel('mean steps survived')\n"
+        "ax.set_xlabel('TRAP_RISK_PENALTY')\n"
+        "ax.set_ylabel('mean steps survived')\n"
         "ax.set_title('Thief survival vs trap-risk aversion (against the region cop)')\n"
-        "plt.tight_layout(); plt.show()\n"
-        "for penalty, steps in zip(penalties, mean_survival):\n"
+        "plt.tight_layout()\n"
+        "plt.show()\n"
+        "for penalty, steps in zip(penalties, mean_survival, strict=True):\n"
         "    print(f'penalty {penalty}: survives {steps:.1f} steps on average')"
     ),
     md(
@@ -237,7 +249,7 @@ CELLS = [
         "where strangulation begins), and mobility:"
     ),
     code(
-        "from police_thief.domain.brain.evade import EvadeThiefBrain\n"
+        "from police_thief.domain.brain.evade import EvadeThiefBrain\n\n"
         "outcomes = [run_match(RegionPoliceBrain(ROLE_POLICE, contract),\n"
         "                      EvadeThiefBrain(ROLE_THIEF, contract), a, b)\n"
         "            for a, b in PAIRS]\n"
@@ -263,7 +275,7 @@ CELLS = [
     ),
     code(
         "from police_thief.domain.brain.blind import BlindThiefBrain\n"
-        "from police_thief.domain.brain.wall import WallPoliceBrain\n"
+        "from police_thief.domain.brain.wall import WallPoliceBrain\n\n"
         "for thief_cls in (BlindThiefBrain, EnhancedThiefBrain, EvadeThiefBrain):\n"
         "    outcomes = [run_match(WallPoliceBrain(ROLE_POLICE, contract),\n"
         "                          thief_cls(ROLE_THIEF, contract), a, b)\n"
@@ -290,9 +302,12 @@ CELLS = [
         "ax.hist([s for s, _ in caught], bins=range(5, 33), edgecolor='black')\n"
         "ax.axvline(contract.movement.max_moves, color='red', linestyle=':',\n"
         "           label='35-step ceiling')\n"
-        "ax.set_xlabel('steps to capture'); ax.set_ylabel('matches')\n"
+        "ax.set_xlabel('steps to capture')\n"
+        "ax.set_ylabel('matches')\n"
         "ax.set_title('Wall cop vs the strongest evader: all 1900 starts')\n"
-        "ax.legend(); plt.tight_layout(); plt.show()"
+        "ax.legend()\n"
+        "plt.tight_layout()\n"
+        "plt.show()"
     ),
     md(
         "## 9. Red team: attacking our own cop\n\n"
@@ -310,19 +325,20 @@ CELLS = [
         "orbit ring. Post-fix, live:"
     ),
     code(
+        "from police_thief.constants import MOVE_STAY\n"
+        "from police_thief.domain.brain.evade import openness, worst_case_region\n"
         "from police_thief.domain.brain.pathfind import distance_field as dfield\n"
-        "from police_thief.domain.brain.evade import worst_case_region, openness\n"
         "from police_thief.domain.brain.region import _reach\n"
         "from police_thief.domain.brain.wall import DOOR, WALL_COLUMN\n"
-        "from police_thief.constants import MOVE_STAY\n"
-        "from police_thief.domain.rules import legal_moves, destination\n\n"
+        "from police_thief.domain.rules import destination, legal_moves\n\n\n"
         "class DoorCamper(EvadeThiefBrain):\n"
         "    def _pick_move(self, view):\n"
         "        best_key, best_move = None, MOVE_STAY\n"
         "        cop_f, door_f = dfield(view.board, view.target), dfield(view.board, DOOR)\n"
         "        for move in legal_moves(view.board, view.position):\n"
         "            cell = destination(view.position, move)\n"
-        "            if cell == view.target: continue\n"
+        "            if cell == view.target:\n"
+        "                continue\n"
         "            score = (worst_case_region(view.board, cell, view.target)\n"
         "                     + 2 * min(_reach(cop_f, cell), 8) - 2 * min(_reach(door_f, cell), 8)\n"
         "                     + len(view.board.free_neighbours(cell)))\n"
@@ -336,7 +352,8 @@ CELLS = [
         "        cop_side = -1 if view.target[1] < WALL_COLUMN else 1\n"
         "        for move in legal_moves(view.board, view.position):\n"
         "            cell = destination(view.position, move)\n"
-        "            if cell == view.target: continue\n"
+        "            if cell == view.target:\n"
+        "                continue\n"
         "            score = (10 * (1 if (cell[1] - WALL_COLUMN) * cop_side < 0 else 0)\n"
         "                     + worst_case_region(view.board, cell, view.target)\n"
         "                     + 2 * min(_reach(cop_f, cell), 8) + openness(view.board, cell))\n"
@@ -384,7 +401,7 @@ CELLS = [
         "the results transfer to the game as actually played:"
     ),
     code(
-        "from police_thief.services.match_runtime import MatchRuntime\n"
+        "from police_thief.services.match_runtime import MatchRuntime\n\n"
         "police = MatchRuntime(ConfigManager.load('police', config_dir='../config'),\n"
         "                      game_id='nb', sub_game=1, github_commit='notebook')\n"
         "thief = MatchRuntime(ConfigManager.load('thief', config_dir='../config'),\n"
@@ -439,7 +456,7 @@ CELLS = [
         "table survives price changes - counts are what the design fixes:"
     ),
     code(
-        "import math\n"
+        "import math\n\n"
         "steps_ceiling = contract.movement.max_moves\n"
         "every_n = int(config.private_value('trash_talk', 'every_n_steps', 3))\n"
         "games_per_series = contract.network.num_games\n"

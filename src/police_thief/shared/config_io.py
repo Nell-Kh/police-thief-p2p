@@ -14,7 +14,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-import tomllib
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 from ..constants import CANONICAL_SEPARATORS
 

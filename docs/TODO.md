@@ -463,36 +463,36 @@ with a meaningful message.
 | 8.16.57 | Trace rule #53 (step-0 declares the commit hash) to its module and proving test | P1 | team | ✔ |
 | 8.16.58 | Trace rule #54 (final JSON reports total tokens) to its module and proving test | P1 | team | ✔ |
 | 8.16.59 | Trace rule #55 (self-grade code quality only) to its module and proving test | P1 | team | ✔ |
-| 8.17 | **README.md academic report** | P0 | team | ☐ |
-| 8.17.1 | Dec-POMDP formalism: states, observations, uncertainty | P0 | team | ☐ |
-| 8.17.2 | FastMCP orchestration dilemmas: turns, failures, gatekeeper/orchestrator | P0 | team | ☐ |
-| 8.17.3 | Strategy chapters: three generations with measured tables | P0 | team | ☐ |
-| 8.17.4 | Verbal layer + deception findings; interop conformance section | P0 | team | ☐ |
-| 8.17.5 | Screenshot slots: Live GUI belief map + Replay Verified OK (owner-supplied) | P0 | team | ☐ |
-| 8.17.6 | Cross-repo link section; code-quality self-grade (rule 55) | P0 | team | ☐ |
-| 8.17.7 | Abstract and system overview with the C4 view | P0 | team | ☐ |
-| 8.17.8 | Dec-POMDP: state space, action space, observation model, reward | P0 | team | ☐ |
-| 8.17.9 | Belief machinery: scent evidence, motion judge, negative evidence, claim pin | P0 | team | ☐ |
-| 8.17.10 | Strategy generation 0-1: pinch failure and the region cop | P0 | team | ☐ |
-| 8.17.11 | Strategy generation 2: wall cop, red team, hybrid frontier table | P0 | team | ☐ |
-| 8.17.12 | Deception chapter: measured lie economics and the adaptive policy | P0 | team | ☐ |
-| 8.17.13 | Orchestration dilemmas: turn-taking, failures, watchdog, gatekeeper | P0 | team | ☐ |
-| 8.17.14 | Interop chapter: the kit, the vectors, the bytes we fixed | P0 | team | ☐ |
-| 8.17.15 | Results tables reproduced from the notebook | P0 | team | ☐ |
-| 8.17.16 | Limitations and future work | P0 | team | ☐ |
-| 8.18 | **Verification pass** | P0 | team | ☐ |
-| 8.18.1 | ruff clean, coverage >= 85%, 150-line audit across every file | P0 | team | ☐ |
-| 8.18.2 | Guidelines section 11.5 checklist walked item by item | P0 | team | ☐ |
-| 8.18.3 | Full suite + notebook regeneration from clean clone | P0 | team | ☐ |
-| 8.18.4 | Audit every src file against the 150-code-line law (report the top five) | P0 | team | ☐ |
-| 8.18.5 | Audit every test file against the 150-code-line law | P0 | team | ☐ |
-| 8.18.6 | Docstring sweep: module, class, function coverage across src | P0 | team | ☐ |
-| 8.18.7 | Hardcoded-value sweep: every literal traced to config or constants | P0 | team | ☐ |
-| 8.18.8 | Secrets sweep: history and working tree | P0 | team | ☐ |
-| 8.18.9 | Determinism sweep: replay two full matches byte-identically | P0 | team | ☐ |
-| 8.18.10 | Re-run kit verify_vectors.py + our 11-test conformance suite | P0 | team | ☐ |
-| 8.18.11 | Regenerate the notebook from scratch and diff committed outputs | P0 | team | ☐ |
-| 8.18.12 | Fresh-clone build: uv sync, full suite, demo scripts on a clean machine | P0 | team | ☐ |
+| 8.17 | **README.md academic report** | P0 | team | ✔ |
+| 8.17.1 | Dec-POMDP formalism: states, observations, uncertainty | P0 | team | ✔ |
+| 8.17.2 | FastMCP orchestration dilemmas: turns, failures, gatekeeper/orchestrator | P0 | team | ✔ |
+| 8.17.3 | Strategy chapters: three generations with measured tables | P0 | team | ✔ |
+| 8.17.4 | Verbal layer + deception findings; interop conformance section | P0 | team | ✔ |
+| 8.17.5 | Screenshot slots: Live GUI belief map + Replay Verified OK (owner-supplied) | P0 | team | ✔ |
+| 8.17.6 | Cross-repo link section; code-quality self-grade (rule 55) | P0 | team | ✔ |
+| 8.17.7 | Abstract and system overview with the C4 view | P0 | team | ✔ |
+| 8.17.8 | Dec-POMDP: state space, action space, observation model, reward | P0 | team | ✔ |
+| 8.17.9 | Belief machinery: scent evidence, motion judge, negative evidence, claim pin | P0 | team | ✔ |
+| 8.17.10 | Strategy generation 0-1: pinch failure and the region cop | P0 | team | ✔ |
+| 8.17.11 | Strategy generation 2: wall cop, red team, hybrid frontier table | P0 | team | ✔ |
+| 8.17.12 | Deception chapter: measured lie economics and the adaptive policy | P0 | team | ✔ |
+| 8.17.13 | Orchestration dilemmas: turn-taking, failures, watchdog, gatekeeper | P0 | team | ✔ |
+| 8.17.14 | Interop chapter: the kit, the vectors, the bytes we fixed | P0 | team | ✔ |
+| 8.17.15 | Results tables reproduced from the notebook | P0 | team | ✔ |
+| 8.17.16 | Limitations and future work | P0 | team | ✔ |
+| 8.18 | **Verification pass** | P0 | team | ✔ |
+| 8.18.1 | ruff clean, coverage >= 85%, 150-line audit across every file | P0 | team | ✔ |
+| 8.18.2 | Guidelines section 11.5 checklist walked item by item | P0 | team | ✔ |
+| 8.18.3 | Full suite + notebook regeneration from clean clone | P0 | team | ✔ |
+| 8.18.4 | Audit every src file against the 150-code-line law (report the top five) | P0 | team | ✔ |
+| 8.18.5 | Audit every test file against the 150-code-line law | P0 | team | ✔ |
+| 8.18.6 | Docstring sweep: module, class, function coverage across src | P0 | team | ✔ |
+| 8.18.7 | Hardcoded-value sweep: every literal traced to config or constants | P0 | team | ✔ |
+| 8.18.8 | Secrets sweep: history and working tree | P0 | team | ✔ |
+| 8.18.9 | Determinism sweep: replay two full matches byte-identically | P0 | team | ✔ |
+| 8.18.10 | Re-run kit verify_vectors.py + our 11-test conformance suite | P0 | team | ✔ |
+| 8.18.11 | Regenerate the notebook from scratch and diff committed outputs | P0 | team | ✔ |
+| 8.18.12 | Fresh-clone build: uv sync, full suite, demo scripts on a clean machine | P0 | team | ✔ |
 | 8.19 | **Repo split + tag** | P0 | team | ☐ |
 | 8.19.1 | Create police-agent and thief-agent repos from the dev repo | P0 | team | ☐ |
 | 8.19.2 | Per-repo configs, docs, cross-links in both READMEs | P0 | team | ☐ |
