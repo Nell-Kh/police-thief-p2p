@@ -83,6 +83,11 @@ from police_thief.infra.http_transport import McpHttpTransport  # noqa: E402
 from police_thief.infra.mcp_client import PeerClient  # noqa: E402
 from police_thief.services.inbound import InboundHandler  # noqa: E402
 from police_thief.services.match_runtime import MatchRuntime  # noqa: E402
+from police_thief.services.series_guard import (  # noqa: E402
+    CONTAINED_FAILURES,
+    failure_reason,
+    technical_loss_row,
+)
 from police_thief.shared.config import ConfigManager  # noqa: E402
 from police_thief.shared.interop import (  # noqa: E402
     derive_game_ids,
@@ -273,8 +278,17 @@ def main() -> None:
 
     rows, role = [], args.start_role
     for n in range(1, args.rounds + 1):
-        rows.append(play_sub_game(n, role, args, ids, us, handler_box, artifacts,
-                                  links, recipient))
+        try:
+            rows.append(play_sub_game(n, role, args, ids, us, handler_box, artifacts,
+                                      links, recipient))
+        except CONTAINED_FAILURES as error:
+            reason = failure_reason(error)
+            print(f"  sub-game {n} did not finish ({reason}) - scoring a technical loss "
+                  f"and continuing the series")
+            rows.append(technical_loss_row(
+                sub_game_number=n, us=us, opponent=args.opponent_group_id, role=role,
+                expect_role=other_role(role), game_id=ids[0], github_commit=git_head(),
+                reason=reason))
         role = other_role(role)
 
     result = result_payload(
