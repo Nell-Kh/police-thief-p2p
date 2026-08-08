@@ -28,21 +28,29 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _series_lib import (  # noqa: E402
+    NEGOTIATE_WAIT_TIMEOUT,
+    ROOT,
+    SwappableHandler,
+    git_head,
+    play_networked,
+    score_for,
+    start_server,
+    wait_for,
+)
+
 sys.path.insert(0, str(ROOT / "src"))
 
 from police_thief.constants import ROLE_POLICE, ROLE_THIEF  # noqa: E402
 from police_thief.domain.audit import audit_disclosure  # noqa: E402
 from police_thief.domain.negotiation import build_terms  # noqa: E402
-from police_thief.infra.http_transport import McpHttpTransport  # noqa: E402
-from police_thief.infra.mcp_client import PeerClient  # noqa: E402
 from police_thief.infra.email.naming import (  # noqa: E402
     config_file_name,
     declaration_file_name,
@@ -57,125 +65,39 @@ from police_thief.infra.email.reports import (  # noqa: E402
     log_payload,
     result_payload,
 )
+from police_thief.infra.http_transport import McpHttpTransport  # noqa: E402
+from police_thief.infra.mcp_client import PeerClient  # noqa: E402
 from police_thief.services.inbound import InboundHandler  # noqa: E402
 from police_thief.services.match_runtime import MatchRuntime  # noqa: E402
 from police_thief.shared.config import ConfigManager  # noqa: E402
-from police_thief.shared.interop import derive_game_ids, negotiate_extras, terms_from_contract  # noqa: E402
+from police_thief.shared.interop import (  # noqa: E402
+    derive_game_ids,
+    negotiate_extras,
+    terms_from_contract,
+)
 from police_thief.shared.sysinfo import hardware_spec  # noqa: E402
 from police_thief.shared.version import __version__  # noqa: E402
 
 SUB_GAMES = 6
 OPPONENT_GROUP_ID = "sparring-local"  # must match the kit's --group-id
 OUR_ROLE_FOR = {n: (ROLE_POLICE if n % 2 == 1 else ROLE_THIEF) for n in range(1, SUB_GAMES + 1)}
-SAFETY_CAP = 200
-TURN_WAIT_TIMEOUT = 60.0
-NEGOTIATE_WAIT_TIMEOUT = 180.0
-POLL_INTERVAL = 0.2
 
 
-def git_head() -> str:
-    out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                         check=False, cwd=ROOT)
-    return out.stdout.strip() or "uncommitted"
+def make_scratch_config(scratch_dir: Path, setting: str = "Haifa") -> Path:
+    """Copy ``config/`` into ``scratch_dir``, pinning ``world.map_area`` to ``setting``.
 
-
-def make_scratch_config(scratch_dir: Path) -> Path:
-    """Copy ``config/`` into ``scratch_dir`` and override world.map_area to Haifa.
-
-    The real ``config/game.json`` stays at its committed "New York" default - "New York" is not
-    a bug, it just does not equal the kit sparring peer's default ``setting`` ("Haifa"), so this
-    rehearsal aligns a *scratch copy* the way 8.15.3w did, never the tracked file.
+    The tracked ``config/game.json`` now ships "Haifa" (the kit peer's own default), so this
+    scratch copy is normally a no-op; it stays because ``setting`` is a *signed* term and this
+    rehearsal must keep working even if the tracked default is renegotiated for a real opponent.
     """
     if scratch_dir.exists():
         shutil.rmtree(scratch_dir)
     shutil.copytree(ROOT / "config", scratch_dir)
     game_json = scratch_dir / "game.json"
     data = json.loads(game_json.read_text(encoding="utf-8"))
-    data["world"]["map_area"] = "Haifa"
+    data["world"]["map_area"] = setting
     game_json.write_text(json.dumps(data, indent=2), encoding="utf-8")
     return scratch_dir
-
-
-class SwappableHandler:
-    """Holds the InboundHandler currently active; the FastMCP tools delegate to it.
-
-    One process serves all six sub-games' worth of `negotiate`/`receive_turn`/`submit_audit`/
-    `receive_control` calls; the *object* backing those calls changes at each sub-game boundary
-    exactly like the kit's own netplay driver swaps in a fresh `SubGamePeer`.
-    """
-
-    def __init__(self) -> None:
-        self.current: InboundHandler | None = None
-
-    def negotiate(self, message: dict[str, Any]) -> dict[str, Any]:
-        return self.current.negotiate(message)
-
-    def receive_turn(self, message: dict[str, Any]) -> dict[str, Any]:
-        return self.current.receive_turn(message)
-
-    def submit_audit(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self.current.submit_audit(payload)
-
-    def receive_control(self, message: dict[str, Any]) -> dict[str, Any]:
-        return self.current.receive_control(message)
-
-
-def start_server(handler: SwappableHandler, port: int) -> threading.Thread:
-    from police_thief.infra.mcp_server import build_server
-
-    server = build_server(handler)  # duck-types InboundHandler's four methods
-    thread = threading.Thread(
-        target=lambda: server.run(transport="http", host="127.0.0.1", port=port,
-                                  show_banner=False),
-        daemon=True,
-    )
-    thread.start()
-    return thread
-
-
-def wait_for(predicate, timeout: float, what: str):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        value = predicate()
-        if value is not None:
-            return value
-        time.sleep(POLL_INTERVAL)
-    raise TimeoutError(f"timed out after {timeout}s waiting for {what}")
-
-
-def play_networked(role: str, matchrt: MatchRuntime, client: PeerClient,
-                   handler: InboundHandler) -> None:
-    """Alternate turns with a real remote opponent - thief always moves first."""
-    thief_is_us = role == ROLE_THIEF
-    for _ in range(SAFETY_CAP):
-        if matchrt.ended:
-            return
-        if thief_is_us:
-            outgoing = matchrt.play_turn()
-            client.send_turn(outgoing.to_wire())
-            if matchrt.ended:
-                return
-        incoming = wait_for(handler.next_turn, TURN_WAIT_TIMEOUT,
-                           f"opponent's turn (sub-game {matchrt.book.sub_game}, step "
-                           f"{handler.next_step})")
-        reply = matchrt.on_turn(incoming)
-        if reply is not None:
-            client.send_turn(reply.to_wire())
-        if matchrt.ended:
-            return
-        if not thief_is_us:
-            outgoing = matchrt.play_turn()
-            client.send_turn(outgoing.to_wire())
-    raise RuntimeError(f"sub-game {matchrt.book.sub_game}: safety cap ({SAFETY_CAP}) exceeded")
-
-
-def score_for(contract, outcome_type: str, role: str) -> int:
-    scoring = contract.scoring
-    if outcome_type == "capture":
-        return scoring.capture_cop if role == ROLE_POLICE else scoring.capture_thief
-    if outcome_type == "survival":
-        return scoring.survival_thief if role == ROLE_THIEF else scoring.survival_cop
-    return scoring.technical_loss
 
 
 def run_sub_game(n: int, scratch_dir: Path, peer_url: str, our_group_id: str, us: str,

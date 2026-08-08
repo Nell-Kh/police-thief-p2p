@@ -10,8 +10,20 @@ from __future__ import annotations
 
 from .base import STYLE_VAGUE, HintProvider, HintRequest, clip_words, direction_word
 
-#: Real landmarks per supported arena; the empty arena uses generic scenery.
+#: Real landmarks per supported arena; an unknown arena uses generic scenery.
+#: "Haifa" is the arena this repo's ``config/game.json`` commits, so it must
+#: carry real landmarks - a shipped arena falling through to
+#: :data:`GENERIC_LANDMARKS` would quietly drain the hints of local flavour
+#: (FR-11), which ``test_llm.py`` pins.
 LANDMARKS: dict[str, tuple[str, ...]] = {
+    "Haifa": (
+        "the Bahá'í Gardens",
+        "Mount Carmel",
+        "the German Colony",
+        "the port",
+        "Wadi Nisnas",
+        "the Louis Promenade",
+    ),
     "New York": (
         "Times Square",
         "the Brooklyn Bridge",

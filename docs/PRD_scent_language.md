@@ -31,7 +31,7 @@ a hard fallback chain guarantees a game always finishes.
 | Scent intensity at focus | `pheromones.pheromone_center_intensity` | 0.9 | **fixed** |
 | Scent decay rate ρ | `pheromones.pheromone_decay` | 0.10 | **fixed** |
 | Scent field size | `pheromones.pheromone_grid_size` | 5 (5×5) | **fixed** |
-| Game arena | `world.map_area` | "New York" | negotiation |
+| Game arena | `world.map_area` | "Haifa" | negotiation |
 | Hint word limit | `world.hint_max_words` | 15 | negotiation |
 | Token estimate per series | `network_and_league.token_budget_per_series` | ~200 000 | negotiation |
 | Verbal provider (private) | TOML `[trash_talk] provider` | `claude_api` (ours; book default `template`) | private per peer |
@@ -99,8 +99,10 @@ All three pheromone values are **fixed status** — never changeable. `map_area`
 - **FR-10 Word cap.** `hint_max_words` (15) is enforced twice: hard truncation/validation
   on every outbound hint (template AND LLM output), and stated inside the LLM system
   prompt so the model targets it natively.
-- **FR-11 Arena flavor.** With `map_area = "New York"`, hints weave real landmarks
-  ("slipping past Times Square") — in template mode too; empty arena ⇒ generic landmarks.
+- **FR-11 Arena flavor.** With `map_area = "Haifa"` (the shipped arena), hints weave real
+  landmarks ("slipping past the Bahá'í Gardens") — in template mode too; an arena with no
+  landmark pool ⇒ generic landmarks. `test_the_shipped_arena_has_real_landmarks` fails if
+  the committed arena ever loses its pool.
 - **FR-12 Intent flag.** The brain/runtime decides `truth`/`lie` per hint; the provider is
   told which to produce; the flag is **sealed inside the commit record** (crypto layer) so
   post-hoc "I meant to lie" claims are impossible.
@@ -213,7 +215,7 @@ def build_provider(cfg: TrashTalkConfig, meter: TokenMeter) -> HintProvider
 9. **Given** `every_n_steps = 3`, **then** LLM calls occur only on steps 3, 6, 9, …;
    the meter total appears in the series report; **given** 90% budget use, **then** all
    remaining hints are template-produced.
-10. **Given** `map_area = "New York"`, template hints include New-York landmarks;
+10. **Given** `map_area = "Haifa"`, template hints include Haifa landmarks;
     **given** `map_area = ""`, generic landmarks.
 11. **Edge:** barrier cells always show belief 0; belief renormalizes to Σ=1 after every
     update (property test); empty/duplicate hint → treated as no-hint (scent-only update).

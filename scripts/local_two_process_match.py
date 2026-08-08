@@ -21,110 +21,33 @@ game.
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _series_lib import (  # noqa: E402
+    NEGOTIATE_WAIT_TIMEOUT,
+    ROOT,
+    SwappableHandler,
+    git_head,
+    other_role,
+    play_networked,
+    start_server,
+    wait_for,
+)
+
 sys.path.insert(0, str(ROOT / "src"))
 
-from police_thief.constants import ROLE_POLICE, ROLE_THIEF  # noqa: E402
 from police_thief.domain.audit import audit_disclosure  # noqa: E402
 from police_thief.domain.negotiation import build_terms  # noqa: E402
 from police_thief.infra.http_transport import McpHttpTransport  # noqa: E402
 from police_thief.infra.mcp_client import PeerClient  # noqa: E402
-from police_thief.infra.mcp_server import build_server  # noqa: E402
 from police_thief.services.inbound import InboundHandler  # noqa: E402
 from police_thief.services.match_runtime import MatchRuntime  # noqa: E402
 from police_thief.shared.config import ConfigManager  # noqa: E402
 from police_thief.shared.interop import negotiate_extras, terms_from_contract  # noqa: E402
-
-SAFETY_CAP = 200
-TURN_WAIT_TIMEOUT = 60.0
-NEGOTIATE_WAIT_TIMEOUT = 60.0
-POLL_INTERVAL = 0.2
-
-
-def other_role(role: str) -> str:
-    return ROLE_THIEF if role == ROLE_POLICE else ROLE_POLICE
-
-
-def git_head() -> str:
-    out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                         check=False, cwd=ROOT)
-    return out.stdout.strip() or "uncommitted"
-
-
-class SwappableHandler:
-    """Holds the InboundHandler currently active; the FastMCP tools delegate to it.
-
-    One process serves every round's worth of negotiate/receive_turn/submit_audit
-    calls; the object backing those calls swaps in a fresh one at each round
-    boundary as the role alternates.
-    """
-
-    def __init__(self) -> None:
-        self.current: InboundHandler | None = None
-
-    def negotiate(self, message: dict) -> dict:
-        return self.current.negotiate(message)
-
-    def receive_turn(self, message: dict) -> dict:
-        return self.current.receive_turn(message)
-
-    def submit_audit(self, payload: dict) -> dict:
-        return self.current.submit_audit(payload)
-
-    def receive_control(self, message: dict) -> dict:
-        return self.current.receive_control(message)
-
-
-def start_server(handler_box: SwappableHandler, port: int) -> threading.Thread:
-    server = build_server(handler_box)  # duck-types InboundHandler's four methods
-    thread = threading.Thread(
-        target=lambda: server.run(transport="http", host="127.0.0.1", port=port,
-                                  show_banner=False),
-        daemon=True,
-    )
-    thread.start()
-    return thread
-
-
-def wait_for(predicate, timeout: float, what: str):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        value = predicate()
-        if value is not None:
-            return value
-        time.sleep(POLL_INTERVAL)
-    raise TimeoutError(f"timed out after {timeout}s waiting for {what}")
-
-
-def play_networked(role: str, matchrt: MatchRuntime, client: PeerClient,
-                   handler: InboundHandler) -> None:
-    """Alternate turns with the real opponent process - thief always moves first."""
-    thief_is_us = role == ROLE_THIEF
-    for _ in range(SAFETY_CAP):
-        if matchrt.ended:
-            return
-        if thief_is_us:
-            outgoing = matchrt.play_turn()
-            client.send_turn(outgoing.to_wire())
-            if matchrt.ended:
-                return
-        incoming = wait_for(handler.next_turn, TURN_WAIT_TIMEOUT,
-                           f"opponent's turn (step {handler.next_step})")
-        reply = matchrt.on_turn(incoming)
-        if reply is not None:
-            client.send_turn(reply.to_wire())
-        if matchrt.ended:
-            return
-        if not thief_is_us:
-            outgoing = matchrt.play_turn()
-            client.send_turn(outgoing.to_wire())
-    raise RuntimeError(f"safety cap ({SAFETY_CAP}) exceeded")
 
 
 def play_round(n: int, role: str, peer_url: str, group_id: str,

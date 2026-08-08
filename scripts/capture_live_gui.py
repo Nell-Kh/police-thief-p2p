@@ -10,6 +10,7 @@ own position, and placed barriers - never the thief's true cell (rules #8/#9).
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import sys
 import time
@@ -18,10 +19,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-try:  # Windows-only: make Tk's logical pixels match ImageGrab's physical ones.
+with contextlib.suppress(AttributeError, OSError):
+    # Windows-only: make Tk's logical pixels match ImageGrab's physical ones.
     ctypes.windll.shcore.SetProcessDpiAwareness(2)  # PROCESS_PER_MONITOR_DPI_AWARE
-except (AttributeError, OSError):  # pragma: no cover - non-Windows
-    pass
 
 from PIL import ImageGrab  # noqa: E402
 

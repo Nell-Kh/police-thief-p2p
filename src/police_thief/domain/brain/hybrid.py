@@ -8,13 +8,30 @@ region has not shrunk for :attr:`STALL_TURNS` turns (the dance signature),
 the region is still above :attr:`EARLY_REGION` at step :attr:`EARLY_STEP`
 (the open-field-evader signature), or the step :attr:`DEADLINE` passes.
 
-Measured frontier (all 1900 start pairs, perfect information): against
+Measured frontier (all 1900 start pairs, PERFECT INFORMATION): against
 reference-style thieves the hybrid captures 1900/1900 in a mean of ~12
 steps (wall: ~25). Against our own elite evader it converts 1891/1900 -
 nine starts escape, which is why the hybrid is NOT the default: the pure
-wall's 1900/1900-everything guarantee is. The config picks per match:
-``wall`` when nothing is known about the opponent, ``hybrid`` once they
-have shown a reference-fork thief and speed buys network safety.
+wall's 1900/1900-everything guarantee is.
+
+That speed advantage DOES NOT TRANSFER to real play. Under belief (the
+only condition a league match is ever played in) and from the contract's
+fixed start, the hybrid is measurably *slower* than the wall:
+
+===================  ==============  =================  ===============
+cop                  vs BlindThief   vs EnhancedThief   vs EvadeThief
+===================  ==============  =================  ===============
+WallPoliceBrain      capture @28     capture @28        survival @34
+HybridPoliceBrain    capture @34     capture @34        survival @34
+===================  ==============  =================  ===============
+
+The opening hunt burns tempo chasing a belief argmax that is still
+diffuse, so the wall finishes later than it would have unopened - and the
+elite evader survives against both. There is therefore no opponent class
+for which the hybrid is the better league choice: prefer
+:class:`~police_thief.domain.brain.wall.WallPoliceBrain` in every match.
+The class is kept because the perfect-information frontier it maps is a
+real research result (notebook §9b) and its tests pin that behaviour.
 """
 
 from __future__ import annotations

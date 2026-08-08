@@ -76,6 +76,34 @@ def test_the_template_uses_arena_landmarks() -> None:
     assert any(any(mark in hint for mark in LANDMARKS["New York"]) for hint in hints)
 
 
+def test_the_shipped_arena_has_real_landmarks() -> None:
+    """The arena config/game.json commits must never fall back to generic scenery.
+
+    ``map_area`` is a signed term, so it moves when a series is renegotiated;
+    whatever it moves to has to earn its own landmark pool, or FR-11's local
+    flavour silently degrades to :data:`GENERIC_LANDMARKS` with nothing failing.
+    """
+    from police_thief.constants import ROLE_POLICE
+    from police_thief.infra.llm.template import GENERIC_LANDMARKS, LANDMARKS
+    from police_thief.shared.config import ConfigManager
+
+    arena = ConfigManager.load(ROLE_POLICE).contract.world.map_area
+    assert arena in LANDMARKS, f"shipped arena {arena!r} has no landmark pool"
+
+    shipped = HintRequest(role="thief", intent="truth", true_direction="N",
+                          map_area=arena, max_words=15, step=0)
+    hints = [
+        TemplateProvider().generate(
+            HintRequest(role="thief", intent="truth", true_direction="N",
+                        map_area=arena, max_words=15, step=step)
+        )
+        for step in range(6)
+    ]
+    assert any(any(mark in hint for mark in LANDMARKS[arena]) for hint in hints)
+    assert not any(any(mark in hint for mark in GENERIC_LANDMARKS) for hint in hints)
+    assert len(TemplateProvider().generate(shipped).split()) <= 15
+
+
 def test_the_template_respects_the_word_cap() -> None:
     for step in range(10):
         hint = TemplateProvider().generate(request(step=step))

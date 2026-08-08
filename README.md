@@ -279,13 +279,28 @@ than by hoping the red team hadn't found everything.
 
 **The hybrid frontier — and why it is not the default.** `brain/hybrid.py` adds three
 "commit tripwires" (irreversible wall-commitment triggers) on top of the wall cop, chasing a
-speed/margin trade-off. It is genuinely stronger against weak thieves (1900/1900, mean 12 steps)
-but **weaker against our own elite evader** (1891/1900) — a real regression, not noise, and the
-reason it is documented and shipped as a *selectable* profile in config rather than promoted to
-default: a strategy that wins faster against weak opponents at the cost of a measurable loss rate
-against the strongest one is a deliberate trade-off for the league operator to make, not one we
-make silently on their behalf. Config documents both cop profiles side by side with their
-published numbers (§9).
+speed/margin trade-off. Under **perfect information** it is genuinely stronger against weak
+thieves (1900/1900, mean 12 steps) but **weaker against our own elite evader** (1891/1900) — a
+real regression, not noise, and the original reason it was documented as a *selectable* profile
+rather than promoted to default.
+
+**That trade-off does not survive contact with belief.** Re-measured under the only conditions a
+league match is ever played in — inferred positions, from the contract's fixed start — the
+hybrid's speed advantage inverts:
+
+| cop | vs. blind thief | vs. enhanced thief | vs. elite evader |
+|---|---|---|---|
+| **Wall** (default) | capture @ step 28 | capture @ step 28 | survival @ 34 |
+| Hybrid | capture @ step 34 | capture @ step 34 | survival @ 34 |
+
+The opening hunt burns tempo chasing a belief argmax that is still diffuse, so the wall closes
+*later* than it would have unopened, and the elite evader escapes both. There is therefore no
+opponent class for which the hybrid is the better league choice, and the config now says so
+outright instead of offering it as a peer alternative. The class and its tests stay, because the
+perfect-information frontier they map is a real result — and because the gap between the two
+tables is itself the finding: **a strategy validated only under perfect information can invert
+under belief, so every strategic claim in this project is now stated with its information
+condition attached.**
 
 **Determinism, redefined.** Along the way "deterministic" stopped meaning "the same object always
 decides the same way" (true but uninteresting) and came to mean the operationally relevant claim:
@@ -387,6 +402,14 @@ peer) are tracked as open work in `docs/TODO.md` §8.14–§8.15, since they req
 | 2, hybrid | Hybrid vs. weak thieves | **1900/1900** | 12 | — | — |
 | 2, hybrid | Hybrid vs. elite evader | **1891/1900** | — | — | — (not default) |
 
+All rows above are **perfect information**. Under belief, from the contract's fixed start:
+
+| Condition (belief, fixed start) | Wall cop | Hybrid cop |
+|---|---|---|
+| vs. blind thief | capture @ 28 | capture @ 34 |
+| vs. enhanced thief | capture @ 28 | capture @ 34 |
+| vs. elite evader | survival @ 34 | survival @ 34 |
+
 | Deception condition (vs. our belief-driven cop) | Belief error |
 |---|---|
 | Naive lie (measured effect, before policy design) | 0.56 → 2.69 |
@@ -484,9 +507,15 @@ that, and only that, measured against this repository's own standing definition 
   conformance today is vector-level (static, byte-exact) rather than a live six-sub-game exchange
   with a second, independently-authored implementation; that is the strongest remaining
   correctness signal we have not yet collected.
-- **The hybrid cop is a documented trade-off, not a solved problem.** It is stronger against weak
-  opponents and measurably weaker against our own strongest evader (§6); a design that closes
-  that gap without sacrificing speed against weak opponents remains open.
+- **The hybrid cop is a documented dead end, not a live trade-off.** Under perfect information it
+  trades speed for a measurable loss rate against our strongest evader; under belief it loses the
+  speed too (§6), leaving no opponent class that prefers it. The open question it leaves is the
+  interesting one: how much *other* perfect-information tuning in the literature inverts the same
+  way once the pursuer only has a belief to chase.
+- **Our cop cannot convert an elite open-field evader under belief.** Wall and hybrid alike end at
+  survival against `EvadeThiefBrain` (§6). Against reference-caliber opponents this never binds —
+  the kit sparring series finished 90–30 — but it is the ceiling on our cop score, and closing it
+  is the single highest-value strategic work left.
 - **RL was deliberately out of scope (ADR-2).** The heuristic track met every KPI without
   training cost or convergence risk; a reinforcement-learning cop/thief pair remains an
   interesting, untaken direction for a non-graded extension.

@@ -17,11 +17,14 @@ opponent_url = "http://127.0.0.1:8802/mcp"     # the only thing I know about the
 turn_timeout_seconds = 180
 
 [strategy]
-# The competition brain (see notebooks/analysis.ipynb). Two proven choices:
-#  wall:WallPoliceBrain    - the guarantee: 1900/1900 vs everything, max 29/35 steps.
-#  hybrid:HybridPoliceBrain - hunt-first: ~12-step kills vs reference-style thieves
-#                             (1900/1900), but 1891/1900 vs an elite evader.
-# Default: the guarantee. Switch to hybrid against a known reference-fork opponent.
+# The competition brain (see notebooks/analysis.ipynb).
+#  wall:WallPoliceBrain - the league choice. Perfect information: 1900/1900 vs
+#    every archetype, max 29/35 steps. Under BELIEF from the contract's fixed
+#    start: captures Blind and Enhanced thieves at step 28.
+#  hybrid:HybridPoliceBrain - do NOT use in league play. Its ~12-step advantage
+#    is a perfect-information artifact; under belief it captures at step 34,
+#    i.e. SLOWER than the wall, and loses to an elite evader just the same.
+#    Kept only as the documented research alternative (notebook 9b, hybrid.py).
 police_class = "police_thief.domain.brain.wall:WallPoliceBrain"
 
 [deception]

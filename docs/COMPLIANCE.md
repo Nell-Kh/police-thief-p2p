@@ -250,6 +250,15 @@ literal fresh-clone rehearsal is best done once at the actual pre-submission che
 scoring `20/5/5/10`, `tie=2`, `technical_loss=0`, `num_games=6` per series,
 `diversity_reward=10`, `min_games_to_pass=2`, `max_games_per_team=10`,
 `token_budget=200000` per series, `response_timeout=30s`, `watchdog=60s`,
-`hint_max_words=15`, `map_area="New York"`, pheromone `center=0.9, decay=0.10`.
+`hint_max_words=15`, `map_area="Haifa"`, pheromone `center=0.9, decay=0.10`.
 Every one of these is pinned by `tests/unit/test_shared/test_contract_values.py` — a
 drifted value fails the suite, not the match.
+
+One deliberate exception: `map_area` is asserted only to be a string, not pinned to a
+literal. It is a *negotiated* signed term (`setting` in the flat 14-key terms), so a series
+may legitimately agree on a different arena; pinning the literal would turn a lawful
+renegotiation into a red suite. Its integrity is guarded from the other side instead —
+`test_the_shipped_arena_has_real_landmarks` fails if the committed arena has no landmark
+pool of its own (FR-11). The committed value is `"Haifa"`, which is also the league kit
+sparring peer's default `setting`, so a handshake against a kit-derived opponent agrees
+with no pre-negotiation.
