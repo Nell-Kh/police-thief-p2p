@@ -133,8 +133,13 @@ def test_an_audit_disclosure_is_stored(handler: InboundHandler) -> None:
 
 
 def test_an_audit_without_records_is_refused(handler: InboundHandler) -> None:
-    with pytest.raises(HandshakeRejectedError, match="must carry records"):
+    with pytest.raises(HandshakeRejectedError, match="must carry a list of records"):
         handler.submit_audit({"sender": "thief"})
+
+
+def test_an_audit_with_a_non_list_records_field_is_refused(handler: InboundHandler) -> None:
+    with pytest.raises(HandshakeRejectedError, match="must carry a list of records"):
+        handler.submit_audit({"sender": "thief", "records": "not-a-list"})
 
 
 def test_an_audit_from_the_wrong_role_is_refused(handler: InboundHandler) -> None:

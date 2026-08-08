@@ -125,8 +125,8 @@ class InboundHandler:
 
     def submit_audit(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Accept the opponent's end-of-game disclosure for the mutual audit."""
-        if not isinstance(payload, dict) or "records" not in payload:
-            raise HandshakeRejectedError("audit payload must carry records")
+        if not isinstance(payload, dict) or not isinstance(payload.get("records"), list):
+            raise HandshakeRejectedError("audit payload must carry a list of records")
         if payload.get("sender") != self._expect_role:
             raise HandshakeRejectedError(
                 f"expected an audit from {self._expect_role!r}"

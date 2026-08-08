@@ -166,3 +166,50 @@ def test_the_runtime_never_crashes_on_a_hostile_barrage(config) -> None:
         runtime.on_turn(message)  # must not raise
     assert runtime.result is not None
     assert runtime.result["type"] == "technical_loss"
+
+
+# --- handler-level robustness: negotiate, submit_audit, server resilience ----
+
+
+def _handler(config: ConfigManager):
+    from police_thief.services.inbound import InboundHandler
+    from police_thief.shared.interop import negotiate_extras, terms_from_contract
+    return InboundHandler(
+        our_terms=terms_from_contract(config.contract),
+        our_extras=negotiate_extras("police", 1), expect_role="thief", reorder_window=2,
+    )
+
+
+@pytest.mark.parametrize("payload", ["not-a-dict", {}, [1, 2, 3], None, {"contract_sha256": 5}])
+def test_a_hostile_negotiate_is_refused_not_crashed(config: ConfigManager, payload) -> None:
+    from police_thief.services.inbound import HandshakeRejectedError
+    with pytest.raises(HandshakeRejectedError):
+        _handler(config).negotiate(payload)
+
+
+@pytest.mark.parametrize("payload", [
+    "not-a-dict",
+    {},                                      # no records key
+    {"sender": "thief", "records": "text"},  # records must be a list, not a string
+    {"sender": "thief", "records": 42},
+    {"sender": "police", "records": []},     # wrong sender
+])
+def test_a_hostile_submit_audit_is_refused_not_crashed(config: ConfigManager, payload) -> None:
+    from police_thief.services.inbound import HandshakeRejectedError
+    with pytest.raises(HandshakeRejectedError):
+        _handler(config).submit_audit(payload)
+
+
+def test_the_server_still_serves_a_legit_turn_after_a_hostile_barrage(
+    config: ConfigManager,
+) -> None:
+    """A bad call must not wedge the handler for the honest turns that follow."""
+    handler = _handler(config)
+    for bad in ([1, 2, 3], "garbage", {"sender": "police", "records": "x"}, {}):
+        with pytest.raises(Exception):  # noqa: B017 - any clean rejection is fine
+            handler.submit_audit(bad)
+    accepted = handler.receive_turn(
+        {"step": 1, "sender": "thief", "hint": "", "smell_grid": {}, "commit": "c1"}
+    )
+    assert accepted["ok"] is True  # the handler is not wedged
+    assert handler.next_turn() is not None
