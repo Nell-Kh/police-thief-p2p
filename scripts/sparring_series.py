@@ -40,6 +40,7 @@ from _series_lib import (  # noqa: E402
     ROOT,
     SwappableHandler,
     git_head,
+    negotiate_patiently,
     play_networked,
     score_for,
     start_server,
@@ -119,7 +120,7 @@ def run_sub_game(n: int, scratch_dir: Path, peer_url: str, our_group_id: str, us
     greeting = build_terms(config, peer_id=our_group_id, games_played=0, sub_game=n,
                            step0_commit=matchrt.step0_commit)
     print(f"\n=== sub-game {n}: we are {role} ===")
-    client.negotiate(greeting)
+    negotiate_patiently(client, greeting, announce=lambda message: print(f"  {message}"))
     wait_for(lambda: handler.opponent_terms, NEGOTIATE_WAIT_TIMEOUT,
             f"opponent's greeting for sub-game {n}")
     their_group = handler.opponent_terms.get("group_id")
@@ -136,7 +137,7 @@ def run_sub_game(n: int, scratch_dir: Path, peer_url: str, our_group_id: str, us
     client.submit_audit(disclosure)
     their_disclosure = wait_for(lambda: handler.audit, NEGOTIATE_WAIT_TIMEOUT,
                                f"opponent's audit disclosure for sub-game {n}")
-    their_report = audit_disclosure(their_disclosure, contract)
+    their_report = audit_disclosure(their_disclosure, contract, **matchrt.audit_evidence())
     print(f"  our audit of their disclosure: {their_report.verdict}"
          + ("" if their_report.passed else f" - {their_report.violations}"))
 

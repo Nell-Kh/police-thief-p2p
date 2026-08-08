@@ -32,6 +32,7 @@ from _series_lib import (  # noqa: E402
     ROOT,
     SwappableHandler,
     git_head,
+    negotiate_patiently,
     other_role,
     play_networked,
     start_server,
@@ -69,7 +70,7 @@ def play_round(n: int, role: str, peer_url: str, group_id: str,
     print(f"\n[{role}] === round {n}: we are {role} ===")
     greeting = build_terms(config, peer_id=group_id, games_played=0, sub_game=n,
                            step0_commit=matchrt.step0_commit)
-    client.negotiate(greeting)
+    negotiate_patiently(client, greeting, announce=lambda message: print(f"[{role}] {message}"))
     wait_for(lambda: handler.opponent_terms, NEGOTIATE_WAIT_TIMEOUT,
             f"opponent's greeting for round {n}")
     print(f"[{role}] negotiated OK with {handler.opponent_terms.get('group_id')}")
@@ -82,7 +83,7 @@ def play_round(n: int, role: str, peer_url: str, group_id: str,
     client.submit_audit(disclosure)
     their_disclosure = wait_for(lambda: handler.audit, NEGOTIATE_WAIT_TIMEOUT,
                                f"opponent's audit disclosure for round {n}")
-    report = audit_disclosure(their_disclosure, contract)
+    report = audit_disclosure(their_disclosure, contract, **matchrt.audit_evidence())
     print(f"[{role}] audit of opponent's disclosure: {report.verdict}"
          + ("" if report.passed else f" - {report.violations}"))
 

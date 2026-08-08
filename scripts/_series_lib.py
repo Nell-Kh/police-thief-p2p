@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
 from police_thief.constants import ROLE_POLICE, ROLE_THIEF  # noqa: E402
+from police_thief.infra.mcp_client import PeerUnreachableError  # noqa: E402
 from police_thief.infra.mcp_server import build_server  # noqa: E402
 from police_thief.services.inbound import InboundHandler  # noqa: E402
 from police_thief.services.match_runtime import MatchRuntime  # noqa: E402
@@ -32,6 +33,11 @@ SAFETY_CAP = 200
 TURN_WAIT_TIMEOUT = 60.0
 NEGOTIATE_WAIT_TIMEOUT = 180.0
 POLL_INTERVAL = 0.2
+
+#: How long to keep re-offering terms to an opponent that has not started yet.
+#: Matches ``services.peer_boot.DEFAULT_WAIT_SECONDS``: two teams start their
+#: processes by hand, minutes apart, and neither should have to go first.
+OPENING_WAIT_SECONDS = 120.0
 
 
 def other_role(role: str) -> str:
@@ -90,6 +96,36 @@ def start_server(handler_box: SwappableHandler, port: int,
     )
     thread.start()
     return thread
+
+
+def negotiate_patiently(client, greeting: dict[str, Any],
+                        wait_seconds: float = OPENING_WAIT_SECONDS,
+                        clock: Callable[[], float] = time.monotonic,
+                        announce: Callable[[str], None] = lambda _message: None) -> dict[str, Any]:
+    """Offer terms, re-offering while the opponent is merely not up yet.
+
+    :meth:`PeerClient.negotiate` carries the contract's *in-match* budget - three
+    tries, five seconds apart - because a silence mid-game must become a
+    technical loss quickly. That is the wrong clock for the opening handshake:
+    the two peers are launched by two people who cannot start on the same
+    second, and the driver used to die outright if the opponent was more than
+    ~15s late. Note the asymmetry it left behind - we then waited a patient 180s
+    for *their* greeting while giving our own call 15s.
+
+    A refusal (contract or lock mismatch) is not a silence: it propagates at
+    once, because no amount of waiting fixes a digest mismatch.
+    """
+    deadline = clock() + wait_seconds
+    waited = False
+    while True:
+        try:
+            return client.negotiate(greeting)
+        except PeerUnreachableError:
+            if clock() >= deadline:
+                raise
+            if not waited:
+                announce("opponent not up yet - waiting for it to start...")
+                waited = True
 
 
 def wait_for(predicate: Callable[[], Any], timeout: float, what: str) -> Any:

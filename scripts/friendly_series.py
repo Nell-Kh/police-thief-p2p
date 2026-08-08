@@ -21,7 +21,18 @@ Usage - a friendly against a tunnelled opponent, us starting as police::
 
 Both peers must agree beforehand on the signed terms (notably ``setting``, which
 this repo commits as "Haifa"), on who starts as which role - the two sides must
-be complementary - and on the sub-game count.
+be complementary - and on the sub-game count. Whoever starts first simply waits
+(``--wait``, default 120s) for the other to come up.
+
+Each series lands in its own ``results/friendly_<game_id>/`` folder. When you
+cross-check against the opponent's bundle, point the kit's checker at the two
+**series folders**, never at ``results/``::
+
+    python tools/check_artifacts.py results/friendly_<game_id> <theirs>
+
+Its two-directory join recurses (``rglob``) where the single-directory check does
+not, so a tree holding several archived series makes honest history look like the
+contradictory-report shape rule 35 zeroes - the kit's own P5 finding.
 """
 
 from __future__ import annotations
@@ -38,9 +49,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _series_lib import (  # noqa: E402
     NEGOTIATE_WAIT_TIMEOUT,
+    OPENING_WAIT_SECONDS,
     ROOT,
     SwappableHandler,
     git_head,
+    negotiate_patiently,
     other_role,
     play_networked,
     score_for,
@@ -103,8 +116,13 @@ def play_sub_game(n: int, role: str, args, ids: tuple[str, str], us: str,
     client = PeerClient(McpHttpTransport(args.peer), contract.network, contract.rate_limiter)
 
     print(f"\n=== sub-game {n}: we are {role} (opponent {expect_role}) ===")
-    client.negotiate(build_terms(config, peer_id=us, games_played=args.games_played,
-                                 sub_game=n, step0_commit=matchrt.step0_commit))
+    negotiate_patiently(
+        client,
+        build_terms(config, peer_id=us, games_played=args.games_played,
+                    sub_game=n, step0_commit=matchrt.step0_commit),
+        wait_seconds=args.wait,
+        announce=lambda message: print(f"  {message}"),
+    )
     wait_for(lambda: handler.opponent_terms, NEGOTIATE_WAIT_TIMEOUT,
              f"opponent's greeting for sub-game {n}")
     their_group = handler.opponent_terms.get("group_id")
@@ -120,7 +138,7 @@ def play_sub_game(n: int, role: str, args, ids: tuple[str, str], us: str,
     client.submit_audit(matchrt.disclosure())
     theirs = wait_for(lambda: handler.audit, NEGOTIATE_WAIT_TIMEOUT,
                       f"opponent's audit disclosure for sub-game {n}")
-    report = audit_disclosure(theirs, contract)
+    report = audit_disclosure(theirs, contract, **matchrt.audit_evidence())
     print(f"  our audit of their disclosure: {report.verdict}"
           + ("" if report.passed else f" - {report.violations}"))
 
@@ -206,6 +224,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--artifacts", default="", help="output directory for artifacts")
     parser.add_argument("--config-dir", default="",
                         help="alternate config/ directory (a second identity, for rehearsals)")
+    parser.add_argument("--wait", type=float, default=OPENING_WAIT_SECONDS,
+                        help="seconds to keep re-offering terms to an opponent that has "
+                             "not started yet (the two-terminal gap)")
     parser.add_argument("--games-played", type=int, default=0,
                         help="counted games already played against this opponent (rule 37)")
     parser.add_argument("--timezone", default="Asia/Jerusalem")

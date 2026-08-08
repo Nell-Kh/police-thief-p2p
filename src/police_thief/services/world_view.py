@@ -33,6 +33,12 @@ class WorldView:
     barriers_used: int = 0
     result: dict[str, Any] | None = None
     pending_claim: list[int] | None = None
+    #: The cell an opponent named in its ``caught: true`` final, and whether that
+    #: merely echoed the cell we broadcast (an *answer*) or named another one (a
+    #: *concession*). Kept so the mutual audit can corroborate the claim instead
+    #: of believing it - see :func:`domain.audit.verify_concession`.
+    final_claim: list[int] | None = None
+    final_claim_is_answer: bool = False
     opponent_step: int = 0
     opponent_barriers: int = 0
     opponent_commits: dict[int, str] = field(default_factory=dict)

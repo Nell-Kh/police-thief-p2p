@@ -15,10 +15,19 @@ from typing import Any
 
 from ..constants import MOVE_DELTAS
 from ..shared.schema import GameContract
-from .board import Board, BoardError
+from .board import Cell
+from .corroboration import verify_concession
 from .crypto import audit_records
-from .rules import is_trapped
-from .sealing import grid_size_of, parse_barriers, revealed_move, revealed_position
+from .sealing import revealed_cell, revealed_move, turn_payloads
+
+__all__ = [
+    "VERDICT_OK",
+    "VERDICT_TAMPERED",
+    "AuditReport",
+    "audit_disclosure",
+    "verify_concession",  # re-exported: the corroboration layer lives next door
+    "verify_trajectory",
+]
 
 VERDICT_OK = "Verified OK"
 VERDICT_TAMPERED = "TAMPERED"
@@ -45,16 +54,6 @@ class AuditReport:
         return VERDICT_OK if self.passed else VERDICT_TAMPERED
 
 
-def _turn_payloads(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The revealed turn payloads, in step order."""
-    turns = [
-        record.get("payload", {})
-        for record in records
-        if record.get("payload", {}).get("type") == "turn"
-    ]
-    return sorted(turns, key=lambda payload: payload.get("step", 0))
-
-
 def verify_trajectory(
     records: list[dict[str, Any]], contract: GameContract, role: str
 ) -> list[str]:
@@ -64,28 +63,36 @@ def verify_trajectory(
     move is a legal displacement (orthogonal or stay - a diagonal cannot even
     be expressed as a delta), every position stays on the board, and each
     consecutive position pair actually differs by the declared move.
+
+    **It degrades rather than accusing.** A peer whose payloads reveal no cell
+    at all is using a legal schema (kit SPEC §3: the payload schema is not an
+    interop constraint), so the displacement check simply has no evidence to run
+    on and is skipped for those steps. Treating our own payload schema as
+    everyone's is precisely how a checker comes to call an honest, sealed,
+    counted series *tampered* - the kit names that mistake and warns it "must
+    not get a second home". The move itself is still checked whenever it is
+    readable, because that needs no position.
     """
     violations: list[str] = []
-    turns = _turn_payloads(records)
+    turns = turn_payloads(records)
     if not turns:
         return violations
     size = contract.board.grid_size
     start = contract.board.cop_start if role == "police" else contract.board.thief_start
-    previous = start
+    previous: Cell | None = start
     for payload in turns:
         step = payload.get("step")
-        try:
-            position = revealed_position(payload)
-            move = revealed_move(payload)
-        except (KeyError, ValueError, TypeError):
-            violations.append(f"step {step}: unreadable position or move")
-            continue
-        if not (0 <= position[0] < size and 0 <= position[1] < size):
-            violations.append(f"step {step}: position {position} off the board")
+        position = revealed_cell(payload)
+        move = revealed_move(payload)
         delta = MOVE_DELTAS.get(move)
         if delta is None:
             violations.append(f"step {step}: illegal move {move!r}")
-        else:
+        if position is None:
+            previous = None  # no cell revealed: nothing to chain the next step to
+            continue
+        if not (0 <= position[0] < size and 0 <= position[1] < size):
+            violations.append(f"step {step}: position {position} off the board")
+        if delta is not None and previous is not None:
             expected = (previous[0] + delta[0], previous[1] + delta[1])
             if position != expected:
                 violations.append(
@@ -95,62 +102,37 @@ def verify_trajectory(
     return violations
 
 
-def _last_turn_payload(records: list[dict[str, Any]]) -> dict[str, Any] | None:
-    """The most recent revealed turn, or ``None`` if the log has no turn at all."""
-    turns = _turn_payloads(records)
-    return turns[-1] if turns else None
-
-
-def verify_concession(records: list[dict[str, Any]]) -> list[str]:
-    """Corroborate a rule-47 concession against the trajectory it followed.
-
-    A concession is a *claim*, not a fact - kit 3.1's zero-step final message
-    lets a thief announce its own capture, but nothing before this check ever
-    verified the announcement was true. For the "boxed in (rule 47)" reason,
-    the last revealed turn's own position and barrier set are re-fed through
-    the same :func:`is_trapped` the engine uses live: if a legal step still
-    existed, the concession was premature or false, and the audit must say so
-    rather than take the sealed claim at its word. Other concession reasons
-    (a trapping barrier, a capture claim) are already covered by the cop's own
-    ordinary turn records, which declare the winning action publicly.
-    """
-    concessions = [
-        record.get("payload", {})
-        for record in records
-        if record.get("payload", {}).get("type") == "concession"
-    ]
-    if not concessions:
-        return []
-    reason = str(concessions[-1].get("result", {}).get("how", ""))
-    if reason != "boxed in (rule 47)":
-        return []
-    last_turn = _last_turn_payload(records)
-    if last_turn is None:
-        return ["concession claims rule-47 but no prior turn establishes a position"]
-    state = str(last_turn.get("state", ""))
-    try:
-        board = Board(grid_size_of(state), parse_barriers(state))
-        position = revealed_position(last_turn)
-    except (KeyError, ValueError, TypeError, BoardError):
-        return ["concession claims rule-47 but the last turn's board/position is unreadable"]
-    if not is_trapped(board, position):
-        return ["concession claims rule-47 (boxed in) but a legal move still existed"]
-    return []
-
-
 def audit_disclosure(
-    disclosure: dict[str, Any], contract: GameContract
+    disclosure: dict[str, Any],
+    contract: GameContract,
+    *,
+    own_barriers: list[Cell] | None = None,
+    conceded_at: Cell | None = None,
+    answered_at: Cell | None = None,
 ) -> AuditReport:
     """Audit an opponent's full end-of-game disclosure.
 
     Args:
         disclosure: ``{"sender": role, "records": [...], "result_claim": ...}``.
         contract: the signed contract fixing the physics being verified.
+        own_barriers: the stones *we* placed. Evidence we hold with certainty,
+            so a self-declared capture can be corroborated without trusting the
+            opponent's reveal. Omit it and that layer simply does not run.
+        conceded_at: the cell the opponent named in its sealed concession, as we
+            received it on the wire.
+        answered_at: the cell we broadcast in our own ``capture_claim`` and the
+            opponent answered ``caught: true`` to.
     """
     records = list(disclosure.get("records", []))
     hashes = audit_records(records)
     violations = verify_trajectory(records, contract, str(disclosure.get("sender", "")))
-    violations += verify_concession(records)
+    violations += verify_concession(
+        records,
+        board_size=contract.board.grid_size,
+        own_barriers=own_barriers,
+        conceded_at=conceded_at,
+        answered_at=answered_at,
+    )
     return AuditReport(
         hashes_ok=bool(hashes["passed"]),
         physics_ok=not violations,

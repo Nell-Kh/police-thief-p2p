@@ -51,6 +51,67 @@ def grid_size_of(state: str) -> int:
         return 0
 
 
+def turn_payloads(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The revealed turn payloads of a disclosed log, in step order."""
+    turns = [
+        record.get("payload", {})
+        for record in records
+        if record.get("payload", {}).get("type") == "turn"
+    ]
+    return sorted(turns, key=lambda payload: payload.get("step", 0))
+
+
+def last_turn_payload(records: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The most recent revealed turn, or ``None`` if the log has no turn at all."""
+    turns = turn_payloads(records)
+    return turns[-1] if turns else None
+
+
+def revealed_cell(payload: dict[str, Any]) -> Cell | None:
+    """The revealed position of one turn, from any legal spelling, or ``None``.
+
+    Tries the reference's ``position`` key first, then the ``self=`` field of a
+    reference-spelled ``state`` summary, then gives up. ``None`` means "this
+    peer's schema does not show me a cell" - a *legal* schema (kit SPEC §3), not
+    evidence of anything, so callers must degrade rather than accuse.
+    """
+    try:
+        return revealed_position(payload)
+    except (KeyError, ValueError, TypeError):
+        return parse_self_cell(str(payload.get("state", "")))
+
+
+def parse_self_cell(state: str) -> Cell | None:
+    """The ``self=`` cell of a reference-spelled state summary, or ``None``.
+
+    A second, *optional* source for a revealed position: kit SPEC §3 says the
+    payload schema is not an interop constraint, so a peer may seal ``state``
+    without a separate ``position`` key. Widening where the trail comes from is
+    explicitly allowed - under one hard condition the spec spells out: the parse
+    must be STRICT, and anything it cannot read confidently must degrade to
+    ``None`` rather than resolve to a cell. A loose parse that mis-reads a
+    malformed summary into the *wrong* cell would not widen verification; it
+    would invent a new way to accuse an honest peer.
+    """
+    marker = "self="
+    index = state.find(marker)
+    if index < 0:
+        return None
+    tail = state[index + len(marker):].split(";", 1)[0]
+    try:
+        cell = ast.literal_eval(tail)
+    except (ValueError, SyntaxError, TypeError):
+        return None
+    if not (isinstance(cell, (list, tuple)) and len(cell) == 2):
+        return None
+    row, col = cell
+    if isinstance(row, bool) or isinstance(col, bool):  # bool is an int subclass
+        return None
+    if not (isinstance(row, int) and isinstance(col, int)):
+        return None
+    return (row, col)
+
+
 def step0_record(
     spec: dict[str, Any],
     model: str,

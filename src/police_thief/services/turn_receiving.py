@@ -97,6 +97,12 @@ def _apply_claim_response(view: WorldView, message: TurnMessage, contract: GameC
     caught = bool(message.claim_response.get("caught"))
     claim = message.claim_response.get("claim")
     if caught:
+        # Remember WHAT was claimed and whether it merely echoed our own
+        # broadcast cell: the audit corroborates it later rather than taking a
+        # self-declared capture at its word (kit F-1/F-2).
+        if isinstance(claim, list) and len(claim) == 2:
+            view.final_claim = [int(claim[0]), int(claim[1])]
+            view.final_claim_is_answer = tuple(view.final_claim) == tuple(view.position)
         view.result = {"type": "capture", "winner": "police", "how": "capture claim"}
     elif isinstance(claim, list) and len(claim) == 2:
         # Negative evidence the reference throws away: that cell is ruled out.
