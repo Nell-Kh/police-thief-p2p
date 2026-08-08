@@ -39,7 +39,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import sys
 import time
 from pathlib import Path
@@ -86,7 +85,10 @@ from police_thief.services.inbound import InboundHandler  # noqa: E402
 from police_thief.services.match_runtime import MatchRuntime  # noqa: E402
 from police_thief.services.series_guard import (  # noqa: E402
     CONTAINED_FAILURES,
+    archive_previous_run,
     failure_reason,
+    load_rows,
+    save_rows,
     technical_loss_row,
 )
 from police_thief.shared.config import ConfigManager  # noqa: E402
@@ -264,8 +266,13 @@ def main() -> None:
     print(f"setting  = {terms['setting']!r} (a signed term - must match the opponent)")
 
     artifacts = Path(args.artifacts or ROOT / "results" / f"friendly_{ids[0]}")
-    if artifacts.exists():
-        shutil.rmtree(artifacts)
+    recovered = load_rows(artifacts)
+    archived = archive_previous_run(artifacts)
+    if archived is not None:
+        print(f"previous run preserved -> {archived}")
+        if recovered:
+            print(f"  it holds {len(recovered)} settled sub-game row(s); this run starts "
+                  f"fresh and does not reuse them")
     artifacts.mkdir(parents=True, exist_ok=True)
 
     handler_box = SwappableHandler()
@@ -290,6 +297,9 @@ def main() -> None:
                 sub_game_number=n, us=us, opponent=args.opponent_group_id, role=role,
                 expect_role=other_role(role), game_id=ids[0], github_commit=git_head(),
                 reason=reason))
+        # Persist after EVERY sub-game: from here on a crash costs the rest of
+        # the series, never the games already won.
+        save_rows(artifacts, rows)
         role = other_role(role)
 
     result = result_payload(
