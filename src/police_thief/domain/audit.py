@@ -18,7 +18,8 @@ from ..shared.schema import GameContract
 from .board import Cell
 from .corroboration import verify_concession
 from .crypto import audit_records
-from .sealing import revealed_cell, revealed_move, turn_payloads
+from .sealing import revealed_move
+from .state_summary import revealed_cell, turn_payloads
 
 __all__ = [
     "VERDICT_OK",

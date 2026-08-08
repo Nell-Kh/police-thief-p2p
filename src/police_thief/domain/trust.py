@@ -8,10 +8,8 @@ mass sits elsewhere, exposes the hint as false; the trust coefficient attached
 to the opponent's declarations drops, and the belief map damps the claimed
 region instead of chasing it.
 
-Parsing is deliberately modest: hints are free natural language capped at
-15 words, so we extract cardinal directions only. Landmark-flavoured hints
-("slipping past Times Square") carry no verifiable geometry and are treated as
-uninformative rather than guessed at.
+Direction parsing and the scent-motion geometry live in :mod:`hint_geometry`;
+this module owns the verdict and the trust coefficient built on top of them.
 """
 
 from __future__ import annotations
@@ -19,54 +17,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .board import Cell
+from .hint_geometry import hot_centroid, mean_direction, parse_directions, region_for
 
 VERDICT_CORROBORATED = "corroborated"
 VERDICT_CONTRADICTED = "contradicted"
 VERDICT_UNINFORMATIVE = "uninformative"
 
-#: Words mapped to cardinal directions (our axis: north = row index shrinks).
-_DIRECTION_WORDS = {
-    "north": "N", "northern": "N", "up": "N", "upper": "N", "top": "N",
-    "south": "S", "southern": "S", "down": "S", "lower": "S", "bottom": "S",
-    "east": "E", "eastern": "E", "right": "E",
-    "west": "W", "western": "W", "left": "W",
-}
-
 #: Trust starts neutral; corroboration pulls it up, contradiction down.
 INITIAL_TRUST = 0.5
 _TRUST_MEMORY = 0.7
 
-#: Cells within this fraction of the snapshot's peak count as the hot core.
-_HOT_FRACTION = 0.8
-
 #: Minimum centroid displacement along the claim before a verdict is made.
 _MOTION_EPSILON = 0.15
-
-#: Unit displacement of each cardinal claim (row, col); north shrinks rows.
-_DIRECTION_DELTAS = {"N": (-1.0, 0.0), "S": (1.0, 0.0), "E": (0.0, 1.0), "W": (0.0, -1.0)}
-
-
-def _hot_centroid(scent: dict[Cell, float]) -> tuple[float, float] | None:
-    """The mass-weighted center of the freshest scent - roughly, the opponent.
-
-    Only cells near the peak participate: the stale tail of the trail would
-    otherwise drag the centroid backward and blur the motion signal.
-    """
-    peak = max(scent.values(), default=0.0)
-    if peak <= 0.0:
-        return None
-    hot = [(cell, value) for cell, value in scent.items() if value >= _HOT_FRACTION * peak]
-    mass = sum(value for _, value in hot)
-    row = sum(cell[0] * value for cell, value in hot) / mass
-    col = sum(cell[1] * value for cell, value in hot) / mass
-    return (row, col)
-
-
-def _mean_direction(directions: frozenset[str]) -> tuple[float, float]:
-    """The average unit vector of the claimed directions."""
-    deltas = [_DIRECTION_DELTAS[d] for d in sorted(directions)]
-    count = len(deltas)
-    return (sum(d[0] for d in deltas) / count, sum(d[1] for d in deltas) / count)
 
 
 @dataclass(frozen=True)
@@ -77,31 +39,6 @@ class Appraisal:
     region: frozenset[Cell]
     verdict: str
     factor: float
-
-
-def parse_directions(hint: str) -> frozenset[str]:
-    """The cardinal directions a hint mentions, if any."""
-    words = hint.lower().replace("-", " ").replace(",", " ").split()
-    found = {_DIRECTION_WORDS[word] for word in words if word in _DIRECTION_WORDS}
-    return frozenset(found)
-
-
-def region_for(directions: frozenset[str], board_size: int) -> frozenset[Cell]:
-    """The board region a set of directions points at (halves intersected)."""
-    half = board_size // 2
-    rows = range(board_size)
-    cols = range(board_size)
-    if "N" in directions:
-        rows = range(0, half)
-    if "S" in directions:
-        rows = range(board_size - half, board_size)
-    if "W" in directions:
-        cols = range(0, half)
-    if "E" in directions:
-        cols = range(board_size - half, board_size)
-    if not directions:
-        return frozenset()
-    return frozenset((row, col) for row in rows for col in cols)
 
 
 class TrustModel:
@@ -135,7 +72,7 @@ class TrustModel:
         """
         directions = parse_directions(hint)
         region = region_for(directions, self._size)
-        centroid = _hot_centroid(scent)
+        centroid = hot_centroid(scent)
         previous, self._last_centroid = self._last_centroid, centroid
         if not region or previous is None or centroid is None:
             return Appraisal(directions, region, VERDICT_UNINFORMATIVE, 1.0)
@@ -154,7 +91,7 @@ class TrustModel:
         consecutive turns can: its dot product with the claimed direction is
         positive for truth, negative for the mirror lie.
         """
-        claim = _mean_direction(directions)
+        claim = mean_direction(directions)
         dot = moved[0] * claim[0] + moved[1] * claim[1]
         if dot > _MOTION_EPSILON:
             return VERDICT_CORROBORATED

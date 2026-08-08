@@ -14,6 +14,8 @@ league), which makes it exactly the wrong budget for the opening handshake. So
 the boot polls for the opponent across a generous window, and - because the peer
 that shakes hands first would otherwise exit while the other is still dialling -
 lingers afterwards, still serving, until the opponent has had its turn.
+
+The retry/backoff loop for the opening handshake lives in :mod:`rendezvous`.
 """
 
 from __future__ import annotations
@@ -22,13 +24,12 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
 from ..infra.http_transport import McpHttpTransport
-from ..infra.mcp_client import PeerUnreachableError
 from ..infra.mcp_server import build_server
 from ..shared.config import ConfigManager
 from .orchestrator import Orchestrator
+from .rendezvous import rendezvous
 
 #: How long to keep looking for an opponent that has not been started yet.
 DEFAULT_WAIT_SECONDS = 120.0
@@ -70,42 +71,6 @@ def start_server(orchestrator: Orchestrator, port: int, host: str = "0.0.0.0") -
     thread = threading.Thread(target=_serve, name=f"mcp-server-{port}", daemon=True)
     thread.start()
     return thread
-
-
-def rendezvous(
-    orchestrator: Orchestrator,
-    peer_id: str,
-    games_played: int,
-    wait_seconds: float,
-    clock: Callable[[], float] = time.monotonic,
-    announce: Callable[[str], None] = lambda _message: None,
-) -> tuple[dict[str, Any] | None, str | None]:
-    """Keep offering terms until the opponent answers or the window closes.
-
-    Returns ``(reply, None)`` on a handshake, ``(None, None)`` when the window
-    expired with the opponent still dark, and ``(None, detail)`` when the
-    opponent answered but *refused* - a contract or lock mismatch, which no
-    amount of retrying can fix and which must therefore stop the loop at once.
-
-    A :class:`PeerUnreachableError` means "not started yet", not "lost", so it
-    is caught and retried here rather than through
-    :meth:`Orchestrator.run_guarded`: that helper drives the phase machine into
-    ``TECHNICAL_LOSS`` - terminal, with no exits - on the very first miss,
-    leaving nothing to retry with.
-    """
-    deadline = clock() + wait_seconds
-    waited = False
-    while True:
-        try:
-            return orchestrator.start_match(peer_id=peer_id, games_played=games_played), None
-        except PeerUnreachableError:
-            if clock() >= deadline:
-                return None, None
-            if not waited:
-                announce("opponent not up yet - waiting for it to start...")
-                waited = True
-        except Exception as refusal:  # a refusal is an answer, not a silence
-            return None, str(refusal)
 
 
 def check_connectivity(

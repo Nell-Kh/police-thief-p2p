@@ -15,7 +15,8 @@ from typing import Any
 from .audit import VERDICT_OK, VERDICT_TAMPERED
 from .crypto import verify
 from .logbook import Logbook
-from .sealing import grid_size_of, parse_barriers, revealed_position
+from .sealing import revealed_position
+from .state_summary import grid_size_of, parse_barriers
 
 __all__ = ["ReplaySession", "grid_size_of", "parse_barriers"]
 

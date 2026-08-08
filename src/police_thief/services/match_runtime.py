@@ -6,6 +6,9 @@ implementation), scent and belief inference on every received message, and the
 closing mutual audit. The strategy module is consulted exactly where the
 rulebook demands - after the incoming hint is decoded, before the outgoing
 commitment is packed.
+
+End-of-game audit reporting and scoring are a separate concern, mixed in
+from :class:`~.match_reporting.MatchReporting`.
 """
 
 from __future__ import annotations
@@ -20,14 +23,16 @@ from ..infra.llm import TokenLedger, build_provider
 from ..shared.config import ConfigManager
 from ..shared.sysinfo import hardware_spec
 from ..shared.version import __version__
+from .concession import concession_message
 from .deception import policy_from_config
+from .match_reporting import MatchReporting
 from .runtime import configured_brain
 from .turn_receiving import receive_turn
-from .turn_taking import concession_message, take_turn
+from .turn_taking import take_turn
 from .world_view import WorldView
 
 
-class MatchRuntime:
+class MatchRuntime(MatchReporting):
     """One peer's engine for a complete networked mini-game."""
 
     def __init__(
@@ -117,35 +122,3 @@ class MatchRuntime:
             self._conceded = True
             return concession_message(view=self.view, book=self.book)
         return None
-
-    def disclosure(self) -> dict[str, Any]:
-        """The end-of-game audit payload: every payload and nonce, plus our claim."""
-        self.book.close(self.result or {"type": "undecided"})
-        return self.book.audit_payload(self.result)
-
-    def audit_evidence(self) -> dict[str, Any]:
-        """Local evidence for corroborating the opponent's self-declared capture.
-
-        Pass straight into :func:`domain.audit.audit_disclosure` as keywords. It
-        carries only things we know first-hand - the stones on our own board and
-        what the opponent claimed on our wire - so a ``caught: true`` is checked
-        against our own record instead of being believed (kit F-1/F-2). Every
-        field may legitimately be absent, in which case that layer stands down.
-        """
-        claim = self.view.final_claim
-        cell = (claim[0], claim[1]) if claim is not None else None
-        return {
-            "own_barriers": sorted(self.view.board.barriers),
-            "conceded_at": None if self.view.final_claim_is_answer else cell,
-            "answered_at": cell if self.view.final_claim_is_answer else None,
-        }
-
-    def points(self) -> int:
-        """The points this peer's claimed result awards it."""
-        scoring = self.contract.scoring
-        result = self.result or {}
-        if result.get("type") == "capture":
-            return scoring.capture_cop if self.view.role == "police" else scoring.capture_thief
-        if result.get("type") == "survival":
-            return scoring.survival_thief if self.view.role == "thief" else scoring.survival_cop
-        return scoring.technical_loss

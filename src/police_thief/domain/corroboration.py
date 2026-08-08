@@ -28,7 +28,7 @@ from typing import Any
 
 from .board import Board, BoardError, Cell
 from .rules import is_trapped
-from .sealing import grid_size_of, last_turn_payload, parse_barriers, revealed_cell
+from .state_summary import grid_size_of, last_turn_payload, parse_barriers, revealed_cell
 
 #: The concession reason that needs re-deriving; other reasons (a trapping
 #: barrier, a matching capture claim) are already declared by the cop's own

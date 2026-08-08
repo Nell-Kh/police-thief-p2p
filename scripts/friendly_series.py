@@ -71,11 +71,10 @@ from police_thief.infra.email.naming import (  # noqa: E402
     result_file_name,
     write_lifecycle_file,
 )
+from police_thief.infra.email.report_blocks import group_block, links_block  # noqa: E402
 from police_thief.infra.email.reports import (  # noqa: E402
     config_payload,
     declaration_payload,
-    group_block,
-    links_block,
     log_payload,
     result_payload,
 )

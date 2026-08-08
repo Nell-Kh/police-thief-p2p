@@ -7,10 +7,10 @@ from police_thief.domain.sealing import (
     revealed_move,
     revealed_position,
     sealed,
-    state_summary,
     step0_record,
     turn_record,
 )
+from police_thief.domain.state_summary import state_summary
 from police_thief.shared.sysinfo import hardware_spec
 
 

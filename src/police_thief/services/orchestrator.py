@@ -6,6 +6,9 @@ MCP client, the inbound handler, the phase machine, the deadline tracker and the
 watchdog, and it hands the game rules to the SDK. It contains **no** decision
 logic and **no** low-level communication of its own: its job is to coordinate,
 not to execute (rulebook ch. 8.3).
+
+Read-only access to the wired subsystems is a separate concern, mixed in from
+:class:`~.orchestrator_accessors.OrchestratorAccessors`.
 """
 
 from __future__ import annotations
@@ -15,19 +18,16 @@ from typing import Any
 from ..constants import PHASE_TECHNICAL_LOSS
 from ..domain.negotiation import build_terms
 from ..domain.state import GameState
-from ..infra.mcp_client import PeerClient, PeerUnreachableError
+from ..infra.mcp_client import PeerUnreachableError
 from ..infra.transport import Transport
-from ..sdk import SimulationSdk
 from ..shared.config import ConfigManager
 from .deadline import DeadlineExpiredError
-from .inbound import InboundHandler
-from .phase_machine import GamePhaseMachine
+from .orchestrator_accessors import OrchestratorAccessors
 from .recovery import Recovery
-from .watchdog import Watchdog
 from .wiring import build_subsystems
 
 
-class Orchestrator:
+class Orchestrator(OrchestratorAccessors):
     """Coordinates one peer's subsystems behind a single entry point."""
 
     def __init__(self, config: ConfigManager, transport: Transport) -> None:
@@ -46,52 +46,6 @@ class Orchestrator:
         self._client = parts.client
         self._inbound = parts.inbound
         self._watchdog = parts.watchdog
-
-    @property
-    def role(self) -> str:
-        """The role this peer plays."""
-        return self._sdk.role
-
-    @property
-    def sdk(self) -> SimulationSdk:
-        """The business entry point holding the game rules."""
-        return self._sdk
-
-    @property
-    def phases(self) -> GamePhaseMachine:
-        """The turn state machine guarding legal transitions."""
-        return self._phases
-
-    @property
-    def client(self) -> PeerClient:
-        """The outbound side: calls to the opponent."""
-        return self._client
-
-    @property
-    def inbound(self) -> InboundHandler:
-        """The inbound side: messages from the opponent."""
-        return self._inbound
-
-    @property
-    def watchdog(self) -> Watchdog:
-        """The process guard that rescues state from a freeze."""
-        return self._watchdog
-
-    @property
-    def state(self) -> GameState:
-        """The current mini-game.
-
-        Raises:
-            RuntimeError: if no match has been started yet.
-        """
-        if self._state is None:
-            raise RuntimeError("no match in progress; call start_match first")
-        return self._state
-
-    @property
-    def recovery(self) -> Recovery:
-        """The state the watchdog rescued, and whether shutdown ran."""
-        return self._recovery
 
     def start_match(
         self,

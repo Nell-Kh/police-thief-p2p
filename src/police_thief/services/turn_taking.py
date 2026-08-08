@@ -4,6 +4,8 @@ The strategy brain decides the move (never the language model), the verbal
 layer composes the hint under the signed word cap, the full truth is sealed
 into the logbook, and only the public parts leave the machine: the commitment
 hash, the hint, the scent grid, and the events the rules require to be open.
+
+Conceding and answering a capture claim live in :mod:`concession`.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ from ..domain.turnmsg import TurnMessage, encode_scent
 from ..infra.llm import HintProvider, HintRequest, TokenLedger
 from ..infra.llm.base import STYLE_DIRECTIONAL
 from ..shared.schema import GameContract
+from .concession import answer_claim
 from .deception import DeceptionPolicy
 from .world_view import WorldView
 
@@ -110,7 +113,7 @@ def take_turn(
         commit=record["commit"],
         barrier_placed=list(barrier) if barrier is not None else None,
         capture_claim=list(view.position) if view.role == "police" else None,
-        claim_response=_answer_claim(view),
+        claim_response=answer_claim(view),
         win_claim={"type": "survival"} if view.role == "thief" and survived else None,
     )
 
@@ -119,41 +122,3 @@ def _sync_claim_gaps(view: WorldView, policy: DeceptionPolicy) -> None:
     """Feed claim distances collected by the receive side into the policy."""
     while view.claim_gaps:
         policy.observe_claim_gap(view.claim_gaps.pop(0))
-
-
-def concession_message(*, view: WorldView, book: Logbook) -> TurnMessage:
-    """The trapped thief's final message: the loss, sealed and announced.
-
-    A trapping barrier (or a matching capture claim) ends the game on the
-    thief's side of the wire - but the cop cannot see the thief's cell, so
-    without this message the winner would never learn it won. The concession
-    is sealed into the logbook like any turn, making a false concession (or a
-    denied one) auditable, and travels as a ``win_claim`` naming the police.
-    """
-    record = book.append(
-        {
-            "step": view.step,
-            "role": view.role,
-            "type": "concession",
-            "result": dict(view.result or {}),
-        }
-    )
-    view.note("conceding the mini-game to the police")
-    return TurnMessage(
-        step=view.step,
-        sender=view.role,
-        hint="",
-        smell_grid=encode_scent(view.my_scent.snapshot()),
-        commit=record["commit"],
-        claim_response={"claim": list(view.position), "caught": True},
-    )
-
-
-def _answer_claim(view: WorldView) -> dict | None:
-    """The thief's truthful answer to the cop's last capture claim."""
-    if view.role != "thief" or view.pending_claim is None:
-        return None
-    claim = view.pending_claim
-    view.pending_claim = None
-    caught = tuple(claim) == view.position
-    return {"claim": claim, "caught": caught}

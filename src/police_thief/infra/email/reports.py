@@ -7,62 +7,21 @@ series, the config artifact carries the flat negotiated terms so an auditor
 can RE-DERIVE the ``game_uid``, the log carries the sealed records, and the
 result carries the ``mutual_agreement`` settlement hash both teams must match
 byte-for-byte.
+
+The ``links``/``group`` joining blocks that feed these payloads live in
+:mod:`report_blocks`.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from ...constants import AGENT_REPORT_ADDRESS
 from ...shared.config_io import sha256_of
 from .consensus import mutual_agreement_hash, mutual_agreement_scope, series_aggregate
-from .naming import config_file_name, declaration_file_name, result_file_name
+from .naming import config_file_name
+from .report_blocks import _is_armed, league_block
 
 SCHEMA_VERSION = "1.1"
-
-
-def links_block(game_id: str, github: dict[str, Any]) -> dict[str, Any]:
-    """The four artifact names plus both teams' repositories - one joining block."""
-    return {
-        "declaration": declaration_file_name(game_id),
-        "config": f"config_{game_id}_g<NN>.json",
-        "log": f"log_{game_id}_g<NN>.json",
-        "result": result_file_name(game_id),
-        "github": github,
-    }
-
-
-def _is_armed(counted: bool, recipient: str) -> bool:
-    """A counted claim only sticks when addressed to the binding league recipient.
-
-    Rule #51 sends every report to one address; rules #37/#38 forbid ever
-    lying about counted status. Gating arming on the recipient makes a
-    misconfigured ``[email] recipient`` fail safe: whatever the caller
-    believed, a report addressed anywhere else is never counted.
-    """
-    return counted and recipient == AGENT_REPORT_ADDRESS
-
-
-def league_block(counted: bool, recipient: str) -> dict[str, Any]:
-    """Armed only for a counted series actually addressed to the binding recipient."""
-    armed = _is_armed(counted, recipient)
-    if counted and not armed:
-        reason = "counted-blocked: recipient is not the binding league address"
-    else:
-        reason = "counted" if armed else "friendly"
-    return {"counted": armed, "reason": reason}
-
-
-def group_block(**fields: Any) -> dict[str, Any]:
-    """One team's declaration block, signed sign-then-insert over its canonical form.
-
-    Expected fields: group_id, group_name, members, repos, mcp_servers, llm_model,
-    hardware_spec, github_commit, counted_games_played (the PRIOR count), code_version.
-    """
-    block = dict(fields)
-    block["hardware_spec_sha256"] = sha256_of(block["hardware_spec"])
-    block["signature"] = "sha256:" + sha256_of(block)
-    return block
 
 
 def _base(
