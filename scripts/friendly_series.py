@@ -63,6 +63,7 @@ from _series_lib import (  # noqa: E402
 
 sys.path.insert(0, str(ROOT / "src"))
 
+from police_thief.constants import AGENT_REPORT_ADDRESS  # noqa: E402
 from police_thief.domain.audit import audit_disclosure  # noqa: E402
 from police_thief.domain.negotiation import build_terms  # noqa: E402
 from police_thief.infra.email.naming import (  # noqa: E402
@@ -242,6 +243,15 @@ def main() -> None:
     us = str(config.private_value("game", "group_id", "team-tbd"))
     if us == args.opponent_group_id:
         raise SystemExit("refusing to play: our group_id equals --opponent-group-id")
+    recipient = str(config.private_value("email", "recipient", ""))
+    if args.counted and recipient != AGENT_REPORT_ADDRESS:
+        raise SystemExit(
+            f"REFUSING to play a counted series that cannot count: --counted was "
+            f"requested but [email].recipient is {recipient!r}, not the binding league "
+            f"address {AGENT_REPORT_ADDRESS!r}. A counted report only arms when addressed "
+            f"there (rule 51), so this series would silently earn zero credit. Fix the "
+            f"recipient in the config, then re-run."
+        )
     terms = terms_from_contract(config.contract)
     ids = derive_game_ids(terms, us, args.opponent_group_id)
     print(f"game_id  = {ids[0]}\ngame_uid = {ids[1]}")
@@ -257,7 +267,6 @@ def main() -> None:
     print(f"serving on {args.host}:{args.port}/mcp ; opponent at {args.peer}")
     time.sleep(1.0)  # let the server bind before the first greeting
 
-    recipient = str(config.private_value("email", "recipient", ""))
     links = links_block(ids[0], github={
         us: dict(config.private("game").get("repos", {})), args.opponent_group_id: {}})
     write_declaration(args, ids, us, config, artifacts, links, recipient)
