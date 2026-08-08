@@ -13,13 +13,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from ..constants import MOVE_DELTAS
 from ..shared.schema import GameContract
 from .board import Cell
 from .corroboration import verify_concession
 from .crypto import audit_records
-from .sealing import revealed_move
-from .state_summary import revealed_cell, turn_payloads
+from .trajectory import verify_trajectory
 
 __all__ = [
     "VERDICT_OK",
@@ -55,52 +53,26 @@ class AuditReport:
         return VERDICT_OK if self.passed else VERDICT_TAMPERED
 
 
-def verify_trajectory(
-    records: list[dict[str, Any]], contract: GameContract, role: str
-) -> list[str]:
-    """Physics violations in a revealed trajectory (empty list = clean).
+def _disclosed_records(disclosure: dict[str, Any]) -> list[dict[str, Any]] | None:
+    """The records of a structurally sound disclosure, or None if it is malformed.
 
-    Checks: the declared start cell matches the signed contract, every step's
-    move is a legal displacement (orthogonal or stay - a diagonal cannot even
-    be expressed as a delta), every position stays on the board, and each
-    consecutive position pair actually differs by the declared move.
-
-    **It degrades rather than accusing.** A peer whose payloads reveal no cell
-    at all is using a legal schema (kit SPEC §3: the payload schema is not an
-    interop constraint), so the displacement check simply has no evidence to run
-    on and is skipped for those steps. Treating our own payload schema as
-    everyone's is precisely how a checker comes to call an honest, sealed,
-    counted series *tampered* - the kit names that mistake and warns it "must
-    not get a second home". The move itself is still checked whenever it is
-    readable, because that needs no position.
+    A hostile or broken peer can send ``records`` as a string, a record as a
+    bare number, or a payload that is not an object - each of which would crash
+    a ``.get`` chain deep in verification. Structural soundness is checked once,
+    here, so the audit can fail such a disclosure cleanly (the peer forfeits)
+    instead of taking us down with it. This is a *structure* check only, never a
+    schema one: which fields a payload object carries stays the peer's own
+    business (kit SPEC §3), so any dict payload passes.
     """
-    violations: list[str] = []
-    turns = turn_payloads(records)
-    if not turns:
-        return violations
-    size = contract.board.grid_size
-    start = contract.board.cop_start if role == "police" else contract.board.thief_start
-    previous: Cell | None = start
-    for payload in turns:
-        step = payload.get("step")
-        position = revealed_cell(payload)
-        move = revealed_move(payload)
-        delta = MOVE_DELTAS.get(move)
-        if delta is None:
-            violations.append(f"step {step}: illegal move {move!r}")
-        if position is None:
-            previous = None  # no cell revealed: nothing to chain the next step to
-            continue
-        if not (0 <= position[0] < size and 0 <= position[1] < size):
-            violations.append(f"step {step}: position {position} off the board")
-        if delta is not None and previous is not None:
-            expected = (previous[0] + delta[0], previous[1] + delta[1])
-            if position != expected:
-                violations.append(
-                    f"step {step}: declared {move} from {previous} but stood at {position}"
-                )
-        previous = position
-    return violations
+    if not isinstance(disclosure, dict):
+        return None
+    raw = disclosure.get("records", [])
+    if not isinstance(raw, list):
+        return None
+    for record in raw:
+        if not isinstance(record, dict) or not isinstance(record.get("payload", {}), dict):
+            return None
+    return raw
 
 
 def audit_disclosure(
@@ -124,7 +96,13 @@ def audit_disclosure(
         answered_at: the cell we broadcast in our own ``capture_claim`` and the
             opponent answered ``caught: true`` to.
     """
-    records = list(disclosure.get("records", []))
+    records = _disclosed_records(disclosure)
+    if records is None:
+        return AuditReport(
+            hashes_ok=False, physics_ok=False, verified_steps=[], failed_steps=[],
+            violations=["malformed disclosure: records must be a list of objects "
+                        "with object payloads"],
+        )
     hashes = audit_records(records)
     violations = verify_trajectory(records, contract, str(disclosure.get("sender", "")))
     violations += verify_concession(

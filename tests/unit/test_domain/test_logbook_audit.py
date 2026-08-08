@@ -252,3 +252,33 @@ _TRAIL_46 = [{"payload": {"type": "turn", "step": 1, "move": "move:STAY",
 def test_the_kit_f1_f2_corroboration_cases(label, clean, records, kwargs) -> None:
     violations = verify_concession(records, board_size=7, **kwargs)
     assert (violations == []) is clean, f"{label}: {violations}"
+
+
+@pytest.mark.parametrize(
+    "disclosure",
+    [
+        "not even a dict",
+        {"sender": "thief", "records": "records-should-be-a-list"},
+        {"sender": "thief", "records": 42},
+        {"sender": "thief", "records": ["a-record-should-be-an-object", 7]},
+        {"sender": "thief", "records": [{"payload": 5, "nonce": None, "commit": 9}]},
+    ],
+)
+def test_a_malformed_disclosure_fails_the_audit_without_crashing(contract, disclosure) -> None:
+    """A hostile peer's broken records forfeit the peer - they never crash us.
+
+    Without the structural guard each of these reaches a ``.get`` on a string
+    or an int deep in verification and raises AttributeError, which - not being
+    a contained network failure - would crash the whole series. The audit must
+    instead return a clean failed verdict, so the driver scores a tamper
+    forfeit and plays on.
+    """
+    report = audit_disclosure(disclosure, contract)
+    assert report.passed is False
+    assert report.verdict == "TAMPERED"
+
+
+def test_a_structurally_sound_but_empty_disclosure_still_parses(contract) -> None:
+    """The guard rejects broken structure only - a legal empty log is not broken."""
+    report = audit_disclosure({"sender": "thief", "records": []}, contract)
+    assert report.hashes_ok is True  # nothing to contradict; not a crash, not a forfeit
