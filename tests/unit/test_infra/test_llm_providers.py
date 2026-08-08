@@ -136,3 +136,50 @@ def test_cli_failure_becomes_a_provider_error(monkeypatch: pytest.MonkeyPatch) -
     monkeypatch.setattr("subprocess.run", explode)
     with pytest.raises(ProviderError, match="claude CLI failed"):
         ClaudeCliProvider(ledger=TokenLedger(budget=0)).generate(REQUEST)
+
+
+def test_the_paid_provider_is_bound_to_a_timeout_and_no_sdk_retries(monkeypatch) -> None:
+    """A stalled hint must never hold our turn past the opponent's watchdog.
+
+    The SDK's default is a multi-minute retry ladder; a taunt is decoration
+    while the move is already decided in pure Python, so one bounded try is
+    the whole budget - the template covers whatever does not arrive.
+    """
+    import sys
+    from types import SimpleNamespace
+
+    from police_thief.infra.llm.claude_api import ClaudeApiProvider
+    from police_thief.infra.llm.ledger import TokenLedger
+
+    captured: dict = {}
+
+    def fake_anthropic_client(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(messages=SimpleNamespace(create=lambda **_: None))
+
+    monkeypatch.setitem(sys.modules, "anthropic",
+                        SimpleNamespace(Anthropic=fake_anthropic_client))
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-a-real-secret")
+
+    provider = ClaudeApiProvider(model="m", ledger=TokenLedger(budget=100), timeout_sec=7.5)
+    provider._get_client()  # noqa: SLF001 - asserting the client's construction
+    assert captured["timeout"] == 7.5
+    assert captured["max_retries"] == 0
+
+
+def test_a_missing_key_fails_before_any_network_call() -> None:
+    """No key must be an instant local refusal, not a connection attempt."""
+    import os
+
+    from police_thief.infra.llm.base import ProviderError
+    from police_thief.infra.llm.claude_api import ClaudeApiProvider
+    from police_thief.infra.llm.ledger import TokenLedger
+
+    saved = os.environ.pop("ANTHROPIC_API_KEY", None)
+    try:
+        provider = ClaudeApiProvider(model="m", ledger=TokenLedger(budget=100))
+        with pytest.raises(ProviderError, match="ANTHROPIC_API_KEY"):
+            provider._get_client()  # noqa: SLF001 - the guard under test
+    finally:
+        if saved is not None:
+            os.environ["ANTHROPIC_API_KEY"] = saved

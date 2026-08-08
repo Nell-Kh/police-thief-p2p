@@ -80,12 +80,17 @@ def build_provider(
     every_n_steps: int,
     ledger: TokenLedger,
     model: str = "",
+    timeout_sec: float = 10.0,
 ) -> HintProvider:
     """Assemble the provider chain the private TOML selects.
 
     ``template`` stands alone. Every paid mode is wrapped as:
     throttle(budget_guard(paid), template) inside a final fallback to the
     template - the guarantees compose.
+
+    Args:
+        timeout_sec: wall-clock ceiling on one paid request, so a stalled
+            network can never hold a turn past the opponent's watchdog.
     """
     template = TemplateProvider()
     if provider_name == "template":
@@ -97,7 +102,7 @@ def build_provider(
     elif provider_name == "claude_api":
         from .claude_api import ClaudeApiProvider
 
-        paid = ClaudeApiProvider(model=model, ledger=ledger)
+        paid = ClaudeApiProvider(model=model, ledger=ledger, timeout_sec=timeout_sec)
     elif provider_name == "claude_cli":
         from .claude_cli import ClaudeCliProvider
 

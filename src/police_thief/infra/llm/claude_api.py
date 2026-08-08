@@ -41,14 +41,27 @@ class ClaudeApiProvider(HintProvider):
 
     name = "claude_api"
 
-    def __init__(self, model: str, ledger: TokenLedger) -> None:
-        """Bind the provider to a model name and the consumption ledger."""
+    def __init__(self, model: str, ledger: TokenLedger, timeout_sec: float = 10.0) -> None:
+        """Bind the provider to a model, the consumption ledger and a hard timeout.
+
+        Args:
+            timeout_sec: wall-clock ceiling on one hint request. The verbal
+                layer is decoration; the move is pure Python and already
+                decided. A hint that has not arrived in time must lose to the
+                template, never hold the turn.
+        """
         self._model = model or DEFAULT_MODEL
         self._ledger = ledger
+        self._timeout_sec = timeout_sec
         self._client = None
 
     def _get_client(self):
         """Build the SDK client lazily so imports never require a key.
+
+        The client is bound to a request timeout and zero SDK-level retries:
+        the default is minutes of patient back-off, which on a bad connection
+        would hold our turn past the opponent's watchdog and hand them a
+        technical loss over a taunt. One try, then the template covers it.
 
         Raises:
             ProviderError: if the SDK or the API key is unavailable.
@@ -61,7 +74,7 @@ class ClaudeApiProvider(HintProvider):
             import anthropic
         except ImportError as error:  # pragma: no cover - dependency is declared
             raise ProviderError("anthropic SDK is not installed") from error
-        self._client = anthropic.Anthropic()
+        self._client = anthropic.Anthropic(timeout=self._timeout_sec, max_retries=0)
         return self._client
 
     def generate(self, request: HintRequest) -> str:

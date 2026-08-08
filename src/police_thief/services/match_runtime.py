@@ -49,6 +49,7 @@ class MatchRuntime(MatchReporting):
             every_n_steps=int(config.private_value("trash_talk", "every_n_steps", 1)),
             ledger=self.ledger,
             model=str(config.private_value("llm", "model", "")),
+            timeout_sec=float(config.private_value("llm", "step_deadline_seconds", 10)),
         )
         self.book = Logbook(game_id, sub_game, config.role)
         self.policy = policy_from_config(config)
