@@ -79,6 +79,7 @@ from police_thief.infra.email.reports import (  # noqa: E402
     log_payload,
     result_payload,
 )
+from police_thief.infra.email.result_check import validate_result_payload  # noqa: E402
 from police_thief.infra.http_transport import McpHttpTransport  # noqa: E402
 from police_thief.infra.mcp_client import PeerClient  # noqa: E402
 from police_thief.services.inbound import InboundHandler  # noqa: E402
@@ -298,6 +299,7 @@ def main() -> None:
         games_played={us: args.games_played, args.opponent_group_id: None},
         first_meeting=args.games_played == 0, counted=args.counted, recipient=recipient,
     )
+    validate_result_payload(result, tie_score=config.contract.scoring.tie_score)
     path = write_lifecycle_file(artifacts, result_file_name(ids[0]), result)
 
     league = result["league"]
