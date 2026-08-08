@@ -76,11 +76,28 @@ def run_demo(quiet: bool = False) -> int:
     return 0
 
 
-def run_peer(role: str, peer_id: str, games_played: int) -> int:
-    """Boot one peer process and probe connectivity to its opponent."""
-    from .services.peer_boot import check_connectivity
+def run_peer(role: str, peer_id: str, games_played: int,
+             wait: float | None = None, linger: float | None = None) -> int:
+    """Boot one peer process and probe connectivity to its opponent.
 
-    report = check_connectivity(ConfigManager.load(role), peer_id, games_played)
+    The two peers are started by hand in two terminals, so whichever goes first
+    waits (up to ``wait``) for the other rather than declaring it unreachable,
+    then lingers (``linger``) so the slower side's own probe lands before we go.
+    """
+    from .services.peer_boot import (
+        DEFAULT_LINGER_SECONDS,
+        DEFAULT_WAIT_SECONDS,
+        check_connectivity,
+    )
+
+    wait = DEFAULT_WAIT_SECONDS if wait is None else wait
+    linger = DEFAULT_LINGER_SECONDS if linger is None else linger
+    print(f"[{role}] serving; waiting up to {wait:.0f}s for the opponent")
+    report = check_connectivity(
+        ConfigManager.load(role), peer_id, games_played,
+        wait_seconds=wait, linger_seconds=linger,
+        announce=lambda message: print(f"[{role}] {message}"),
+    )
     status = "OK" if report.handshake_ok else "FAILED"
     print(f"[{report.role}] serving on port {report.my_port}")
     print(f"[{report.role}] opponent at {report.opponent_url}")
@@ -98,13 +115,19 @@ def main(argv: list[str] | None = None) -> int:
     peer.add_argument("--role", required=True, choices=["police", "thief"])
     peer.add_argument("--peer-id", default="team-dev")
     peer.add_argument("--games-played", type=int, default=0)
+    # Defaults resolve inside run_peer: peer_boot pulls in the MCP stack, and the
+    # CLI must stay importable (and `demo`/`replay` usable) without paying for it.
+    peer.add_argument("--wait", type=float, default=None,
+                      help="seconds to wait for an opponent that has not started yet")
+    peer.add_argument("--linger", type=float, default=None,
+                      help="seconds to keep serving after our handshake lands")
     replay = sub.add_parser("replay", help="open the verified replay viewer")
     replay.add_argument("--log", required=True, help="path of a saved log_<id>_gNN.json")
     args = parser.parse_args(argv)
     if args.command == "demo":
         return run_demo(quiet=args.quiet)
     if args.command == "peer":
-        return run_peer(args.role, args.peer_id, args.games_played)
+        return run_peer(args.role, args.peer_id, args.games_played, args.wait, args.linger)
     if args.command == "replay":  # pragma: no cover - requires a display
         from .gui.replay import ReplayWindow
 

@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from police_thief.infra.http_transport import McpHttpTransport, _extract_reply
+from police_thief.infra.mcp_client import PeerUnreachableError
 from police_thief.infra.transport import TransportError
 from police_thief.services import peer_boot
 from police_thief.services.peer_boot import BootReport, build_peer, check_connectivity
@@ -66,16 +67,30 @@ def test_build_peer_wires_the_configured_opponent_url(config_dir) -> None:
     assert orchestrator.role == "police"
 
 
+def _fake_peer(start_match, **inbound) -> SimpleNamespace:
+    """An orchestrator double exposing just what the boot touches."""
+    inbound.setdefault("opponent_games_played", None)
+    inbound.setdefault("opponent_terms", None)
+    return SimpleNamespace(
+        start_match=start_match,
+        fail=lambda _reason: None,
+        inbound=SimpleNamespace(**inbound),
+    )
+
+
+def _install(monkeypatch: pytest.MonkeyPatch, fake: SimpleNamespace) -> None:
+    """Point the boot at a doubled peer and stub the server thread away."""
+    monkeypatch.setattr(peer_boot, "build_peer", lambda _config: fake)
+    monkeypatch.setattr(peer_boot, "start_server", lambda *_a, **_k: None)
+
+
 def test_check_connectivity_reports_a_successful_handshake(
     monkeypatch: pytest.MonkeyPatch, config_dir
 ) -> None:
-    fake = SimpleNamespace(
-        run_guarded=lambda action: {"accepted": True},
-        inbound=SimpleNamespace(opponent_games_played=4),
-    )
-    monkeypatch.setattr(peer_boot, "build_peer", lambda _config: fake)
-    monkeypatch.setattr(peer_boot, "start_server", lambda *_a, **_k: None)
-    report = check_connectivity(ConfigManager.load("police", config_dir), "team-a", 1)
+    fake = _fake_peer(lambda **_kw: {"accepted": True}, opponent_games_played=4)
+    _install(monkeypatch, fake)
+    report = check_connectivity(ConfigManager.load("police", config_dir), "team-a", 1,
+                                linger_seconds=0)
     assert isinstance(report, BootReport)
     assert report.handshake_ok
     assert "opponent declared 4 games" in report.detail
@@ -86,13 +101,13 @@ def test_check_connectivity_reports_a_clean_technical_loss(
     monkeypatch: pytest.MonkeyPatch, config_dir
 ) -> None:
     """An unreachable opponent must produce a report, never a hang or a crash."""
-    fake = SimpleNamespace(
-        run_guarded=lambda action: None,
-        inbound=SimpleNamespace(opponent_games_played=None),
-    )
-    monkeypatch.setattr(peer_boot, "build_peer", lambda _config: fake)
-    monkeypatch.setattr(peer_boot, "start_server", lambda *_a, **_k: None)
-    report = check_connectivity(ConfigManager.load("police", config_dir), "team-a", 0)
+
+    def never_answers(**_kw):
+        raise PeerUnreachableError("negotiate: opponent unreachable after 3 attempts")
+
+    _install(monkeypatch, _fake_peer(never_answers))
+    report = check_connectivity(ConfigManager.load("police", config_dir), "team-a", 0,
+                                wait_seconds=0)
     assert not report.handshake_ok
     assert "technical loss" in report.detail
 
@@ -100,14 +115,85 @@ def test_check_connectivity_reports_a_clean_technical_loss(
 def test_check_connectivity_reports_a_contract_rejection(
     monkeypatch: pytest.MonkeyPatch, config_dir
 ) -> None:
-    """A digest mismatch is a refusal to play, reported as such."""
+    """A digest mismatch is a refusal to play, reported as such - never retried."""
+    calls = []
 
-    def refuse(_action):
+    def refuse(**_kw):
+        calls.append(1)
         raise RuntimeError("contract mismatch: ours abc, theirs def")
 
-    fake = SimpleNamespace(run_guarded=refuse, inbound=SimpleNamespace())
-    monkeypatch.setattr(peer_boot, "build_peer", lambda _config: fake)
-    monkeypatch.setattr(peer_boot, "start_server", lambda *_a, **_k: None)
-    report = check_connectivity(ConfigManager.load("thief", config_dir), "team-b", 0)
+    _install(monkeypatch, _fake_peer(refuse))
+    report = check_connectivity(ConfigManager.load("thief", config_dir), "team-b", 0,
+                                wait_seconds=60)
     assert not report.handshake_ok
     assert "contract mismatch" in report.detail
+    assert calls == [1], "a refusal is an answer; retrying it would waste the window"
+
+
+def test_the_peer_that_starts_first_waits_instead_of_giving_up(
+    monkeypatch: pytest.MonkeyPatch, config_dir
+) -> None:
+    """The two-terminal race: whichever peer boots first must wait, not fail.
+
+    Before the rendezvous existed, the first-started peer burned PeerClient's
+    short retry budget against a port nobody was listening on yet, reported
+    "opponent unreachable", and exited - so `peer --role thief` then
+    `peer --role police` could never both succeed.
+    """
+    attempts = []
+
+    def up_on_the_fourth_try(**_kw):
+        attempts.append(1)
+        if len(attempts) < 4:
+            raise PeerUnreachableError("opponent unreachable after 3 attempts")
+        return {"accepted": True}
+
+    _install(monkeypatch, _fake_peer(up_on_the_fourth_try))
+    said = []
+    report = check_connectivity(ConfigManager.load("thief", config_dir), "team-a", 0,
+                                wait_seconds=60, linger_seconds=0, announce=said.append)
+    assert report.handshake_ok
+    assert len(attempts) == 4
+    assert any("waiting" in message for message in said)
+
+
+def test_the_rendezvous_window_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Waiting must never become hanging: an expired window still reports."""
+    clock = iter([0.0, 5.0, 10.0, 99.0, 99.0, 99.0])
+
+    def never_answers(**_kw):
+        raise PeerUnreachableError("unreachable")
+
+    fake = _fake_peer(never_answers)
+    _install(monkeypatch, fake)
+    reply, refusal = peer_boot.rendezvous(fake, "team-a", 0, wait_seconds=30,
+                                          clock=lambda: next(clock))
+    assert reply is None and refusal is None
+
+
+def test_a_one_sided_handshake_names_the_likely_cause(
+    monkeypatch: pytest.MonkeyPatch, config_dir
+) -> None:
+    """Heard from them but cannot reach them back: point at opponent_url."""
+
+    def never_answers(**_kw):
+        raise PeerUnreachableError("unreachable")
+
+    fake = _fake_peer(never_answers, opponent_terms={"group_id": "them"})
+    _install(monkeypatch, fake)
+    report = check_connectivity(ConfigManager.load("police", config_dir), "team-a", 0,
+                                wait_seconds=0)
+    assert not report.handshake_ok
+    assert "opponent_url" in report.detail
+
+
+def test_the_winner_of_the_race_lingers_so_the_other_side_can_finish(
+    monkeypatch: pytest.MonkeyPatch, config_dir
+) -> None:
+    """Exiting the instant our own handshake lands would strand the slower peer."""
+    _install(monkeypatch, _fake_peer(lambda **_kw: {"accepted": True}))
+    slept: list[float] = []
+    report = check_connectivity(ConfigManager.load("police", config_dir), "team-a", 0,
+                                linger_seconds=12, sleep=slept.append)
+    assert report.handshake_ok
+    assert slept == [12]
